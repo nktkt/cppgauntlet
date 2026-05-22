@@ -7,8 +7,8 @@ use crate::compdb::{self, CompilationDatabase, CompilationUnit};
 use crate::config;
 use crate::error::AppError;
 use crate::report::{
-    stage_from_result, Report, ReportStatus, StageReport, StageStatus, Summary, TargetInfo,
-    ToolInfo,
+    stage_from_result, CoverageMetric, CoverageSummary, Report, ReportStatus, StageReport,
+    StageStatus, Summary, TargetInfo, ToolInfo,
 };
 use crate::runner::{run_command, CommandSpec};
 
@@ -44,7 +44,11 @@ pub fn run(args: CheckArgs) -> Result<Report, AppError> {
         CheckTarget::CompilationDatabase(_) if args.ctest => {
             Err(AppError::CtestRequiresCMakeProject)
         }
+        CheckTarget::CompilationDatabase(_) if args.coverage => {
+            Err(AppError::CoverageRequiresSourceFile)
+        }
         CheckTarget::CompilationDatabase(database) => run_compilation_database(args, database),
+        CheckTarget::CMakeProject(_) if args.coverage => Err(AppError::CoverageRequiresSourceFile),
         CheckTarget::CMakeProject(project_dir) => run_cmake_project(args, project_dir),
     }
 }
@@ -132,7 +136,20 @@ fn run_source_file(args: ResolvedCheckArgs, source: PathBuf) -> Result<Report, A
         stages.push(StageReport::skipped("sanitize_run"));
     }
 
-    let summary = summarize(&stages);
+    let coverage = if args.coverage {
+        append_coverage_stages(
+            &mut stages,
+            &args,
+            &source,
+            &build_dir,
+            &artifact_root,
+            timeout,
+        )?
+    } else {
+        None
+    };
+
+    let summary = summarize(&stages, coverage);
     let status = if summary.failed_stages == 0 {
         ReportStatus::Passed
     } else {
@@ -256,7 +273,7 @@ fn build_and_write_report(
     stages: Vec<StageReport>,
     report_path: PathBuf,
 ) -> Result<Report, AppError> {
-    let summary = summarize(&stages);
+    let summary = summarize(&stages, None);
     let status = if summary.failed_stages == 0 {
         ReportStatus::Passed
     } else {
@@ -453,6 +470,9 @@ struct ResolvedCheckArgs {
     clang_tidy: bool,
     clang_tidy_bin: String,
     clang_tidy_checks: Option<String>,
+    coverage: bool,
+    llvm_cov_bin: String,
+    llvm_profdata_bin: String,
 }
 
 impl ResolvedCheckArgs {
@@ -465,8 +485,13 @@ impl ResolvedCheckArgs {
         let config_clang_tidy = config.clang_tidy_enabled();
         let config_clang_tidy_bin = config.clang_tidy_bin();
         let config_clang_tidy_checks = config.clang_tidy_checks();
+        let config_coverage = config.coverage_enabled();
+        let config_llvm_cov_bin = config.llvm_cov_bin();
+        let config_llvm_profdata_bin = config.llvm_profdata_bin();
         let cli_requested_clang_tidy =
             args.clang_tidy || args.clang_tidy_bin.is_some() || args.clang_tidy_checks.is_some();
+        let cli_requested_coverage =
+            args.coverage || args.llvm_cov_bin.is_some() || args.llvm_profdata_bin.is_some();
 
         Ok(Self {
             file: args.file,
@@ -498,6 +523,15 @@ impl ResolvedCheckArgs {
                 .or(config_clang_tidy_bin)
                 .unwrap_or_else(|| "clang-tidy".to_string()),
             clang_tidy_checks: args.clang_tidy_checks.or(config_clang_tidy_checks),
+            coverage: cli_requested_coverage || config_coverage.unwrap_or(false),
+            llvm_cov_bin: args
+                .llvm_cov_bin
+                .or(config_llvm_cov_bin)
+                .unwrap_or_else(|| "llvm-cov".to_string()),
+            llvm_profdata_bin: args
+                .llvm_profdata_bin
+                .or(config_llvm_profdata_bin)
+                .unwrap_or_else(|| "llvm-profdata".to_string()),
         })
     }
 }
@@ -617,6 +651,209 @@ fn clang_tidy_args(checks: Option<&str>) -> Vec<String> {
         .unwrap_or_default()
 }
 
+fn append_coverage_stages(
+    stages: &mut Vec<StageReport>,
+    args: &ResolvedCheckArgs,
+    source: &Path,
+    build_dir: &Path,
+    artifact_root: &Path,
+    timeout: Duration,
+) -> Result<Option<CoverageSummary>, AppError> {
+    let coverage_dir = artifact_root.join("coverage");
+    create_dir(&coverage_dir)?;
+
+    if stages
+        .iter()
+        .any(|stage| stage.status == StageStatus::Failed)
+    {
+        append_skipped_coverage_stages(stages);
+        return Ok(None);
+    }
+
+    let executable = build_dir.join(coverage_executable_name(source));
+    let artifact_stem = artifact_stem(source);
+    let profraw = coverage_dir.join(format!("{artifact_stem}.profraw"));
+    let profdata = coverage_dir.join(format!("{artifact_stem}.profdata"));
+    let summary_path = coverage_dir.join("coverage-summary.json");
+
+    let coverage_compile = compile_stage(
+        "coverage_compile",
+        &args.compiler,
+        args.standard.as_flag(),
+        source,
+        &executable,
+        &coverage_flags(),
+        timeout,
+    )?;
+    let coverage_compile_ok = coverage_compile.status == StageStatus::Passed;
+    stages.push(coverage_compile);
+    if !coverage_compile_ok {
+        stages.push(StageReport::skipped("coverage_run"));
+        stages.push(StageReport::skipped("coverage_merge"));
+        stages.push(StageReport::skipped("coverage_report"));
+        return Ok(None);
+    }
+
+    let coverage_run = coverage_run_stage(&executable, &profraw, timeout);
+    let coverage_run_ok = coverage_run.status == StageStatus::Passed;
+    stages.push(coverage_run);
+    if !coverage_run_ok {
+        stages.push(StageReport::skipped("coverage_merge"));
+        stages.push(StageReport::skipped("coverage_report"));
+        return Ok(None);
+    }
+
+    let coverage_merge =
+        coverage_merge_stage(&args.llvm_profdata_bin, &profraw, &profdata, timeout);
+    let coverage_merge_ok = coverage_merge.status == StageStatus::Passed;
+    stages.push(coverage_merge);
+    if !coverage_merge_ok {
+        stages.push(StageReport::skipped("coverage_report"));
+        return Ok(None);
+    }
+
+    let (coverage_report, coverage) = coverage_report_stage(
+        &args.llvm_cov_bin,
+        &executable,
+        &profdata,
+        source,
+        &summary_path,
+        timeout,
+    )?;
+    stages.push(coverage_report);
+
+    Ok(coverage)
+}
+
+fn append_skipped_coverage_stages(stages: &mut Vec<StageReport>) {
+    stages.push(StageReport::skipped("coverage_compile"));
+    stages.push(StageReport::skipped("coverage_run"));
+    stages.push(StageReport::skipped("coverage_merge"));
+    stages.push(StageReport::skipped("coverage_report"));
+}
+
+fn coverage_run_stage(executable: &Path, profraw: &Path, timeout: Duration) -> StageReport {
+    let spec = CommandSpec::new(executable.display().to_string())
+        .env("LLVM_PROFILE_FILE", profraw.display().to_string());
+    let command = spec.command_line();
+    let result = run_command(spec, timeout);
+    stage_from_command_result("coverage_run", command, result, Some(profraw))
+}
+
+fn coverage_merge_stage(
+    llvm_profdata_bin: &str,
+    profraw: &Path,
+    profdata: &Path,
+    timeout: Duration,
+) -> StageReport {
+    let args = vec![
+        "merge".to_string(),
+        "-sparse".to_string(),
+        profraw.display().to_string(),
+        "-o".to_string(),
+        profdata.display().to_string(),
+    ];
+    let spec = CommandSpec::new(llvm_profdata_bin).args(args);
+    let command = spec.command_line();
+    let result = run_command(spec, timeout);
+    stage_from_command_result("coverage_merge", command, result, Some(profdata))
+}
+
+fn coverage_report_stage(
+    llvm_cov_bin: &str,
+    executable: &Path,
+    profdata: &Path,
+    source: &Path,
+    summary_path: &Path,
+    timeout: Duration,
+) -> Result<(StageReport, Option<CoverageSummary>), AppError> {
+    let args = vec![
+        "export".to_string(),
+        executable.display().to_string(),
+        format!("-instr-profile={}", profdata.display()),
+        "--summary-only".to_string(),
+        "--sources".to_string(),
+        source.display().to_string(),
+    ];
+    let spec = CommandSpec::new(llvm_cov_bin).args(args);
+    let command = spec.command_line();
+    let result = run_command(spec, timeout);
+    let mut stage =
+        stage_from_command_result("coverage_report", command, result, Some(summary_path));
+
+    if stage.status != StageStatus::Passed {
+        return Ok((stage, None));
+    }
+
+    let coverage = match parse_coverage_summary(&stage.stdout) {
+        Ok(coverage) => coverage,
+        Err(error) => {
+            stage.status = StageStatus::Failed;
+            stage.errors += 1;
+            if !stage.stderr.is_empty() {
+                stage.stderr.push('\n');
+            }
+            stage.stderr.push_str(&error);
+            return Ok((stage, None));
+        }
+    };
+
+    if let Some(parent) = summary_path.parent() {
+        create_dir(parent)?;
+    }
+    fs::write(summary_path, &stage.stdout).map_err(|source| AppError::WriteReport {
+        path: summary_path.to_path_buf(),
+        source,
+    })?;
+
+    Ok((stage, Some(coverage)))
+}
+
+fn parse_coverage_summary(output: &str) -> Result<CoverageSummary, String> {
+    let value: serde_json::Value = serde_json::from_str(output)
+        .map_err(|source| format!("failed to parse coverage JSON: {source}"))?;
+    let totals = value
+        .pointer("/data/0/totals")
+        .ok_or_else(|| "coverage JSON is missing data[0].totals".to_string())?;
+
+    Ok(CoverageSummary {
+        lines: coverage_metric(totals, "lines")?,
+        functions: coverage_metric(totals, "functions")?,
+        regions: coverage_metric(totals, "regions")?,
+    })
+}
+
+fn coverage_metric(totals: &serde_json::Value, key: &str) -> Result<CoverageMetric, String> {
+    let metric = totals
+        .get(key)
+        .ok_or_else(|| format!("coverage JSON is missing totals.{key}"))?;
+    let count = metric
+        .get("count")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or_else(|| format!("coverage JSON is missing totals.{key}.count"))?;
+    let covered = metric
+        .get("covered")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or_else(|| format!("coverage JSON is missing totals.{key}.covered"))?;
+    let percent = metric
+        .get("percent")
+        .and_then(serde_json::Value::as_f64)
+        .ok_or_else(|| format!("coverage JSON is missing totals.{key}.percent"))?;
+
+    Ok(CoverageMetric {
+        count,
+        covered,
+        percent,
+    })
+}
+
+fn coverage_flags() -> Vec<String> {
+    vec![
+        "-fprofile-instr-generate".to_string(),
+        "-fcoverage-mapping".to_string(),
+    ]
+}
+
 fn run_executable_stage(
     name: &str,
     executable: &Path,
@@ -687,7 +924,7 @@ fn sanitizer_flags(sanitizers: &[Sanitizer]) -> Vec<String> {
     ]
 }
 
-fn summarize(stages: &[StageReport]) -> Summary {
+fn summarize(stages: &[StageReport], coverage: Option<CoverageSummary>) -> Summary {
     Summary {
         warnings: stages.iter().map(|stage| stage.warnings).sum(),
         errors: stages.iter().map(|stage| stage.errors).sum(),
@@ -697,6 +934,7 @@ fn summarize(stages: &[StageReport]) -> Summary {
             .filter(|stage| stage.status == StageStatus::Failed)
             .count(),
         timed_out_stages: stages.iter().filter(|stage| stage.timed_out).count(),
+        coverage,
     }
 }
 
@@ -713,12 +951,7 @@ fn write_report(report: &Report) -> Result<(), AppError> {
 }
 
 fn executable_name(source: &Path, sanitizers: Option<&[Sanitizer]>) -> String {
-    let base = source
-        .file_stem()
-        .and_then(|stem| stem.to_str())
-        .map(sanitize_filename)
-        .filter(|stem| !stem.is_empty())
-        .unwrap_or_else(|| "cppgauntlet-target".to_string());
+    let base = artifact_stem(source);
 
     let suffix = sanitizers
         .map(|items| {
@@ -734,6 +967,23 @@ fn executable_name(source: &Path, sanitizers: Option<&[Sanitizer]>) -> String {
         Some(suffix) => format!("{base}-{suffix}{}", std::env::consts::EXE_SUFFIX),
         None => format!("{base}{}", std::env::consts::EXE_SUFFIX),
     }
+}
+
+fn coverage_executable_name(source: &Path) -> String {
+    format!(
+        "{}-coverage{}",
+        artifact_stem(source),
+        std::env::consts::EXE_SUFFIX
+    )
+}
+
+fn artifact_stem(source: &Path) -> String {
+    source
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .map(sanitize_filename)
+        .filter(|stem| !stem.is_empty())
+        .unwrap_or_else(|| "cppgauntlet-target".to_string())
 }
 
 fn sanitize_filename(value: &str) -> String {

@@ -305,6 +305,95 @@ static_analysis:
 }
 
 #[test]
+#[cfg(unix)]
+fn check_source_can_collect_coverage() {
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "hello.cpp");
+    let compiler = make_fake_compiler(temp.path(), "coverage-clang++");
+    let llvm_profdata = make_fake_profdata(temp.path(), "coverage-llvm-profdata");
+    let llvm_cov = make_fake_llvm_cov(temp.path(), "coverage-llvm-cov");
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args([
+            "check",
+            "hello.cpp",
+            "--compiler",
+            compiler.to_str().unwrap(),
+            "--sanitizers",
+            "none",
+            "--coverage",
+            "--llvm-profdata-bin",
+            llvm_profdata.to_str().unwrap(),
+            "--llvm-cov-bin",
+            llvm_cov.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Line Coverage: 100.00%"))
+        .stdout(predicate::str::contains("coverage_report"));
+
+    let value = read_report(temp.path());
+    assert_eq!(value["status"], "passed");
+    assert_eq!(stage(&value, "coverage_compile")["status"], "passed");
+    assert_eq!(stage(&value, "coverage_run")["status"], "passed");
+    assert_eq!(stage(&value, "coverage_merge")["status"], "passed");
+    assert_eq!(stage(&value, "coverage_report")["status"], "passed");
+    assert_eq!(value["summary"]["coverage"]["lines"]["percent"], 100.0);
+    assert!(stage(&value, "coverage_compile")["command"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|arg| arg == "-fprofile-instr-generate"));
+    assert!(stage(&value, "coverage_run")["command"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|arg| arg.as_str().unwrap().starts_with("LLVM_PROFILE_FILE=")));
+    assert!(temp
+        .path()
+        .join(".cppgauntlet/coverage/coverage-summary.json")
+        .exists());
+}
+
+#[test]
+#[cfg(unix)]
+fn check_config_can_enable_coverage() {
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "hello.cpp");
+    let compiler = make_fake_compiler(temp.path(), "configured-coverage-clang++");
+    let llvm_profdata = make_fake_profdata(temp.path(), "configured-llvm-profdata");
+    let llvm_cov = make_fake_llvm_cov(temp.path(), "configured-llvm-cov");
+    fs::write(
+        temp.path().join("cppgauntlet.yaml"),
+        format!(
+            r#"compiler: "{}"
+sanitizers:
+  enabled: []
+coverage:
+  enabled: true
+  llvm_cov_bin: "{}"
+  llvm_profdata_bin: "{}"
+"#,
+            compiler.display(),
+            llvm_cov.display(),
+            llvm_profdata.display()
+        ),
+    )
+    .unwrap();
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args(["check", "hello.cpp"])
+        .assert()
+        .success();
+
+    let value = read_report(temp.path());
+    assert_eq!(stage(&value, "coverage_report")["status"], "passed");
+    assert_eq!(value["summary"]["coverage"]["functions"]["covered"], 1);
+}
+
+#[test]
 fn check_uses_default_yaml_config() {
     if !clang_available() {
         return;
@@ -696,6 +785,29 @@ fn check_ctest_requires_cmake_project() {
 }
 
 #[test]
+fn check_coverage_requires_source_file() {
+    let temp = tempdir().unwrap();
+    write_project_source(temp.path(), "src/good.cpp", "int good() { return 1; }\n");
+    write_compile_commands(
+        temp.path(),
+        &[serde_json::json!({
+            "directory": temp.path(),
+            "file": "src/good.cpp",
+            "arguments": ["clang++", "-std=c++20", "-c", "src/good.cpp"]
+        })],
+    );
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args(["check", ".", "--coverage"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "--coverage is currently only supported when checking a single C++ source file",
+        ));
+}
+
+#[test]
 fn invalid_config_standard_reports_error() {
     let temp = tempdir().unwrap();
     copy_fixture(temp.path(), "hello.cpp");
@@ -968,6 +1080,78 @@ fn make_fake_script(dir: &std::path::Path, name: &str, body: &str) -> std::path:
     permissions.set_mode(0o755);
     fs::set_permissions(&path, permissions).unwrap();
     path
+}
+
+#[cfg(unix)]
+fn make_fake_compiler(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
+    make_fake_script(
+        dir,
+        name,
+        r#"out=""
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = "-o" ]; then
+    shift
+    out="$1"
+  fi
+  shift
+done
+if [ -z "$out" ]; then
+  echo "missing output path" >&2
+  exit 2
+fi
+cat > "$out" <<'SCRIPT'
+#!/bin/sh
+exit 0
+SCRIPT
+chmod +x "$out"
+"#,
+    )
+}
+
+#[cfg(unix)]
+fn make_fake_profdata(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
+    make_fake_script(
+        dir,
+        name,
+        r#"out=""
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = "-o" ]; then
+    shift
+    out="$1"
+  fi
+  shift
+done
+if [ -z "$out" ]; then
+  echo "missing output path" >&2
+  exit 2
+fi
+: > "$out"
+"#,
+    )
+}
+
+#[cfg(unix)]
+fn make_fake_llvm_cov(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
+    make_fake_script(
+        dir,
+        name,
+        r#"cat <<'JSON'
+{
+  "data": [
+    {
+      "totals": {
+        "lines": { "count": 3, "covered": 3, "percent": 100.0 },
+        "functions": { "count": 1, "covered": 1, "percent": 100.0 },
+        "regions": { "count": 2, "covered": 2, "percent": 100.0 }
+      }
+    }
+  ],
+  "type": "llvm.coverage.json.export",
+  "version": "2.0.1"
+}
+JSON
+"#,
+    )
 }
 
 #[cfg(unix)]

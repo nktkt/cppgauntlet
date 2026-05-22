@@ -34,6 +34,9 @@ pub struct ProjectConfig {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub static_analysis: Option<StaticAnalysisConfig>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub coverage: Option<CoverageConfig>,
 }
 
 impl ProjectConfig {
@@ -54,6 +57,11 @@ impl ProjectConfig {
                 clang_tidy: Some(false),
                 clang_tidy_bin: Some("clang-tidy".to_string()),
                 clang_tidy_checks: None,
+            }),
+            coverage: Some(CoverageConfig {
+                enabled: Some(false),
+                llvm_cov_bin: Some("llvm-cov".to_string()),
+                llvm_profdata_bin: Some("llvm-profdata".to_string()),
             }),
         }
     }
@@ -101,6 +109,22 @@ impl ProjectConfig {
             .as_ref()
             .and_then(|analysis| analysis.clang_tidy_checks.clone())
     }
+
+    pub fn coverage_enabled(&self) -> Option<bool> {
+        self.coverage.as_ref().and_then(|coverage| coverage.enabled)
+    }
+
+    pub fn llvm_cov_bin(&self) -> Option<String> {
+        self.coverage
+            .as_ref()
+            .and_then(|coverage| coverage.llvm_cov_bin.clone())
+    }
+
+    pub fn llvm_profdata_bin(&self) -> Option<String> {
+        self.coverage
+            .as_ref()
+            .and_then(|coverage| coverage.llvm_profdata_bin.clone())
+    }
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -135,6 +159,19 @@ pub struct StaticAnalysisConfig {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub clang_tidy_checks: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct CoverageConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub llvm_cov_bin: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub llvm_profdata_bin: Option<String>,
 }
 
 pub fn load_config(requested_path: Option<&Path>) -> Result<ProjectConfig, AppError> {

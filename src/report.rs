@@ -27,6 +27,7 @@ impl Report {
             format!("Compiler: {}", self.target.compiler),
             format!("Warnings: {}", self.summary.warnings),
             format!("Errors: {}", self.summary.errors),
+            coverage_line(&self.summary),
             format!("Report: {}", self.report_path.display()),
             String::new(),
             "Stages:".to_string(),
@@ -71,6 +72,22 @@ pub struct Summary {
     pub diagnostics: usize,
     pub failed_stages: usize,
     pub timed_out_stages: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub coverage: Option<CoverageSummary>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct CoverageSummary {
+    pub lines: CoverageMetric,
+    pub functions: CoverageMetric,
+    pub regions: CoverageMetric,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct CoverageMetric {
+    pub count: u64,
+    pub covered: u64,
+    pub percent: f64,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -213,4 +230,12 @@ pub fn stage_from_result(
         stderr: result.stderr,
         artifact: artifact.map(Path::to_path_buf),
     }
+}
+
+fn coverage_line(summary: &Summary) -> String {
+    summary
+        .coverage
+        .as_ref()
+        .map(|coverage| format!("Line Coverage: {:.2}%", coverage.lines.percent))
+        .unwrap_or_else(|| "Line Coverage: n/a".to_string())
 }

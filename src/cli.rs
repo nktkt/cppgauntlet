@@ -24,6 +24,7 @@ pub enum OutputFormat {
 }
 
 #[derive(Debug, Subcommand)]
+#[allow(clippy::large_enum_variant)]
 pub enum Commands {
     /// Compile and run checks for a single C++ source file.
     Check(CheckArgs),
@@ -83,6 +84,18 @@ pub struct CheckArgs {
     /// clang-tidy checks expression.
     #[arg(long)]
     pub clang_tidy_checks: Option<String>,
+
+    /// Collect source-based coverage for single-file checks.
+    #[arg(long)]
+    pub coverage: bool,
+
+    /// llvm-cov executable.
+    #[arg(long)]
+    pub llvm_cov_bin: Option<String>,
+
+    /// llvm-profdata executable.
+    #[arg(long)]
+    pub llvm_profdata_bin: Option<String>,
 }
 
 #[derive(Debug, Args)]

@@ -40,6 +40,7 @@ cargo run -- check ./project/compile_commands.json
 cargo run -- check ./cmake-project
 cargo run -- check ./cmake-project --ctest
 cargo run -- check main.cpp --clang-tidy
+cargo run -- check main.cpp --coverage
 cargo run -- init
 cargo run -- doctor
 cargo run -- --format json check main.cpp
@@ -55,7 +56,8 @@ The current JSON report schema is version `2`. Each stage records:
 - exit code
 - timeout state
 - warning and error counts
-- structured diagnostics extracted from compiler and sanitizer output
+- structured diagnostics extracted from compiler, sanitizer, and analyzer output
+- optional coverage summary
 - raw stdout and stderr
 - generated artifact path
 
@@ -65,6 +67,7 @@ See [docs/DOCTOR.md](docs/DOCTOR.md) for environment diagnostics.
 See [docs/COMPILATION_DATABASE.md](docs/COMPILATION_DATABASE.md) for project checks through `compile_commands.json`.
 See [docs/CMAKE.md](docs/CMAKE.md) for CMake project checks.
 See [docs/CLANG_TIDY.md](docs/CLANG_TIDY.md) for static analysis with `clang-tidy`.
+See [docs/COVERAGE.md](docs/COVERAGE.md) for source-based coverage with LLVM tools.
 
 ## MVP Scope
 
@@ -80,7 +83,7 @@ The first version will focus on a small, useful workflow:
 
 ## Future Scope
 
-- `llvm-cov` and `llvm-profdata` coverage reports.
+- Project-level `llvm-cov` and `llvm-profdata` coverage reports.
 - HTML reports.
 - libFuzzer workflows.
 - CI-friendly exit codes.
@@ -115,11 +118,16 @@ test:
 static_analysis:
   clang_tidy: false
   clang_tidy_bin: clang-tidy
+
+coverage:
+  enabled: false
+  llvm_cov_bin: llvm-cov
+  llvm_profdata_bin: llvm-profdata
 ```
 
 ## Project Status
 
-CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, optional `clang-tidy` analysis, environment diagnostics, and JSON reports.
+CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, optional `clang-tidy` analysis, single-file LLVM coverage, environment diagnostics, and JSON reports.
 
 ## License
 

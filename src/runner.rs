@@ -11,6 +11,7 @@ pub struct CommandSpec {
     pub program: String,
     pub args: Vec<String>,
     pub current_dir: Option<PathBuf>,
+    pub envs: Vec<(String, String)>,
 }
 
 impl CommandSpec {
@@ -19,6 +20,7 @@ impl CommandSpec {
             program: program.into(),
             args: Vec::new(),
             current_dir: None,
+            envs: Vec::new(),
         }
     }
 
@@ -32,8 +34,18 @@ impl CommandSpec {
         self
     }
 
+    pub fn env(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.envs.push((key.into(), value.into()));
+        self
+    }
+
     pub fn command_line(&self) -> Vec<String> {
-        let mut parts = Vec::with_capacity(self.args.len() + 1);
+        let mut parts = Vec::with_capacity(self.envs.len() + self.args.len() + 1);
+        parts.extend(
+            self.envs
+                .iter()
+                .map(|(key, value)| format!("{key}={value}")),
+        );
         parts.push(self.program.clone());
         parts.extend(self.args.clone());
         parts
@@ -65,6 +77,9 @@ pub fn run_command(spec: CommandSpec, timeout: Duration) -> Result<CommandResult
 
     if let Some(current_dir) = &spec.current_dir {
         command.current_dir(current_dir);
+    }
+    for (key, value) in &spec.envs {
+        command.env(key, value);
     }
 
     let mut child = command.spawn().map_err(|source| AppError::CommandSpawn {

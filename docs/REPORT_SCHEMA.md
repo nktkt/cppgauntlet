@@ -34,12 +34,18 @@ Report and stage status values use snake case:
   "errors": 0,
   "diagnostics": 1,
   "failed_stages": 0,
-  "timed_out_stages": 0
+  "timed_out_stages": 0,
+  "coverage": {
+    "lines": { "count": 10, "covered": 9, "percent": 90.0 },
+    "functions": { "count": 2, "covered": 2, "percent": 100.0 },
+    "regions": { "count": 6, "covered": 5, "percent": 83.33 }
+  }
 }
 ```
 
 Warnings do not currently fail a report. Compile failures, runtime failures, sanitizer failures, and timeouts do fail a report.
 `clang-tidy` warnings do not fail a report unless the `clang-tidy` process itself exits non-zero.
+The `coverage` object is omitted when coverage is not enabled or when coverage collection fails before a summary can be parsed.
 
 ## Stage
 
@@ -69,6 +75,10 @@ Current stage names:
 - `clang_tidy:<source path>`
 - `compile`
 - `compile:<source path>`
+- `coverage_compile`
+- `coverage_run`
+- `coverage_merge`
+- `coverage_report`
 - `ctest`
 - `run`
 - `sanitize_compile`

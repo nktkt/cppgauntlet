@@ -193,12 +193,12 @@ Exit criteria:
 
 ## Near-Term Priorities
 
-1. Build the Rust CLI skeleton.
-2. Implement single-file compile checks.
-3. Add sanitizer execution.
-4. Produce stable JSON reports.
-5. Add CI for the Rust project.
-6. Create contribution and issue templates.
+1. Extend coverage from single-file checks to CMake and CTest workflows.
+2. Add custom test command support for non-CTest projects.
+3. Add CI-friendly summary controls for warnings, coverage, and analyzer findings.
+4. Add baseline support to distinguish new issues from existing debt.
+5. Add Markdown and HTML report outputs.
+6. Create contribution and issue templates before the first public release milestone.
 
 ## Non-Goals
 

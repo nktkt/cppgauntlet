@@ -32,6 +32,9 @@ pub enum AppError {
     #[error("--ctest is only supported when checking a CMake project directory")]
     CtestRequiresCMakeProject,
 
+    #[error("--coverage is currently only supported when checking a single C++ source file")]
+    CoverageRequiresSourceFile,
+
     #[error("invalid sanitizer '{0}'. Expected address, undefined, asan, ubsan, or none")]
     InvalidSanitizer(String),
 

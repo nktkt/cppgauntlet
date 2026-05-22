@@ -53,6 +53,11 @@ static_analysis:
   clang_tidy: false
   clang_tidy_bin: clang-tidy
   clang_tidy_checks: null
+
+coverage:
+  enabled: false
+  llvm_cov_bin: llvm-cov
+  llvm_profdata_bin: llvm-profdata
 ```
 
 ## Fields
@@ -67,5 +72,8 @@ static_analysis:
 - `static_analysis.clang_tidy`: run `clang-tidy` after compile checks
 - `static_analysis.clang_tidy_bin`: `clang-tidy` executable
 - `static_analysis.clang_tidy_checks`: optional checks expression passed as `--checks=<value>`
+- `coverage.enabled`: collect source-based coverage for single-file checks
+- `coverage.llvm_cov_bin`: `llvm-cov` executable
+- `coverage.llvm_profdata_bin`: `llvm-profdata` executable
 
 If `report.path` is omitted, CppGauntlet writes to `<artifact_dir>/cppgauntlet-report.json`.
