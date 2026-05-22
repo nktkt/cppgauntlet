@@ -37,6 +37,9 @@ pub struct ProjectConfig {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub coverage: Option<CoverageConfig>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub policy: Option<PolicyConfig>,
 }
 
 impl ProjectConfig {
@@ -65,6 +68,10 @@ impl ProjectConfig {
                 enabled: Some(false),
                 llvm_cov_bin: Some("llvm-cov".to_string()),
                 llvm_profdata_bin: Some("llvm-profdata".to_string()),
+            }),
+            policy: Some(PolicyConfig {
+                max_warnings: None,
+                min_line_coverage: None,
             }),
         }
     }
@@ -132,6 +139,16 @@ impl ProjectConfig {
             .as_ref()
             .and_then(|coverage| coverage.llvm_profdata_bin.clone())
     }
+
+    pub fn max_warnings(&self) -> Option<usize> {
+        self.policy.as_ref().and_then(|policy| policy.max_warnings)
+    }
+
+    pub fn min_line_coverage(&self) -> Option<f64> {
+        self.policy
+            .as_ref()
+            .and_then(|policy| policy.min_line_coverage)
+    }
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -182,6 +199,16 @@ pub struct CoverageConfig {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub llvm_profdata_bin: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PolicyConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_warnings: Option<usize>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_line_coverage: Option<f64>,
 }
 
 pub fn load_config(requested_path: Option<&Path>) -> Result<ProjectConfig, AppError> {

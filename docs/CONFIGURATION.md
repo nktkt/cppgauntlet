@@ -59,6 +59,10 @@ coverage:
   enabled: false
   llvm_cov_bin: llvm-cov
   llvm_profdata_bin: llvm-profdata
+
+policy:
+  max_warnings: null
+  min_line_coverage: null
 ```
 
 ## Fields
@@ -77,5 +81,7 @@ coverage:
 - `coverage.enabled`: collect source-based coverage for single-file and CMake checks
 - `coverage.llvm_cov_bin`: `llvm-cov` executable
 - `coverage.llvm_profdata_bin`: `llvm-profdata` executable
+- `policy.max_warnings`: fail the report when total warnings exceed this number
+- `policy.min_line_coverage`: fail the report when line coverage is below this percentage
 
 If `report.path` is omitted, CppGauntlet writes to `<artifact_dir>/cppgauntlet-report.json`.

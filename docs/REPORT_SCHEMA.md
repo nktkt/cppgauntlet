@@ -43,9 +43,9 @@ Report and stage status values use snake case:
 }
 ```
 
-Warnings do not currently fail a report. Compile failures, runtime failures, sanitizer failures, and timeouts do fail a report.
+Warnings do not fail a report unless the `policy.max_warnings` gate is configured. Compile failures, runtime failures, sanitizer failures, policy failures, and timeouts do fail a report.
 `clang-tidy` warnings do not fail a report unless the `clang-tidy` process itself exits non-zero.
-The `coverage` object is omitted when coverage is not enabled or when coverage collection fails before a summary can be parsed.
+The `coverage` object is omitted when coverage is not enabled or when coverage collection fails before a summary can be parsed. If all earlier stages pass, a configured `policy.min_line_coverage` gate fails when this summary is unavailable.
 
 ## Stage
 
@@ -83,6 +83,7 @@ Current stage names:
 - `coverage_merge`
 - `coverage_report`
 - `ctest`
+- `policy`
 - `run`
 - `sanitize_compile`
 - `sanitize_run`

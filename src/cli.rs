@@ -100,6 +100,14 @@ pub struct CheckArgs {
     /// llvm-profdata executable.
     #[arg(long)]
     pub llvm_profdata_bin: Option<String>,
+
+    /// Fail the report when total warnings exceed this number.
+    #[arg(long)]
+    pub max_warnings: Option<usize>,
+
+    /// Fail the report when line coverage is below this percentage.
+    #[arg(long, value_parser = parse_percentage)]
+    pub min_line_coverage: Option<f64>,
 }
 
 #[derive(Debug, Args)]
@@ -166,4 +174,17 @@ impl CppStandard {
 
 fn parse_standard(value: &str) -> Result<CppStandard, String> {
     CppStandard::parse(value)
+}
+
+fn parse_percentage(value: &str) -> Result<f64, String> {
+    let parsed = value
+        .parse::<f64>()
+        .map_err(|_| format!("invalid percentage '{value}'"))?;
+    if parsed.is_finite() && (0.0..=100.0).contains(&parsed) {
+        Ok(parsed)
+    } else {
+        Err(format!(
+            "invalid percentage '{value}'. Expected a value between 0 and 100"
+        ))
+    }
 }

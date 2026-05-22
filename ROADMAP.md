@@ -194,7 +194,7 @@ Exit criteria:
 ## Near-Term Priorities
 
 1. Extend coverage to raw `compile_commands.json` workflows.
-2. Add CI-friendly summary controls for warnings, coverage, and analyzer findings.
+2. Expand policy gates to analyzer findings and changed-line coverage.
 3. Add baseline support to distinguish new issues from existing debt.
 4. Add Markdown and HTML report outputs.
 5. Create contribution and issue templates before the first public release milestone.

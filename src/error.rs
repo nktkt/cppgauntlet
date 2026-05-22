@@ -41,6 +41,9 @@ pub enum AppError {
     #[error("{0}")]
     InvalidStandard(String),
 
+    #[error("invalid coverage threshold {0}. Expected a value between 0 and 100")]
+    InvalidCoverageThreshold(f64),
+
     #[error("configuration file already exists: {0}. Use --force to overwrite it")]
     ConfigExists(PathBuf),
 

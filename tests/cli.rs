@@ -487,6 +487,104 @@ test:
 }
 
 #[test]
+fn check_policy_can_fail_on_warning_threshold() {
+    if !clang_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "warning.cpp");
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args([
+            "check",
+            "warning.cpp",
+            "--sanitizers",
+            "none",
+            "--max-warnings",
+            "0",
+        ])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("policy: failed"));
+
+    let value = read_report(temp.path());
+    assert_eq!(value["status"], "failed");
+    assert_eq!(stage(&value, "policy")["status"], "failed");
+    assert!(stage(&value, "policy")["stderr"]
+        .as_str()
+        .unwrap()
+        .contains("exceed configured maximum"));
+}
+
+#[test]
+#[cfg(unix)]
+fn check_policy_can_pass_coverage_threshold() {
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "hello.cpp");
+    let compiler = make_fake_compiler(temp.path(), "policy-coverage-clang++");
+    let llvm_profdata = make_fake_profdata(temp.path(), "policy-llvm-profdata");
+    let llvm_cov = make_fake_llvm_cov_with_line_percent(temp.path(), "policy-llvm-cov", 95.0);
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args([
+            "check",
+            "hello.cpp",
+            "--compiler",
+            compiler.to_str().unwrap(),
+            "--sanitizers",
+            "none",
+            "--coverage",
+            "--llvm-profdata-bin",
+            llvm_profdata.to_str().unwrap(),
+            "--llvm-cov-bin",
+            llvm_cov.to_str().unwrap(),
+            "--min-line-coverage",
+            "90",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("policy: passed"));
+
+    let value = read_report(temp.path());
+    assert_eq!(stage(&value, "policy")["status"], "passed");
+    assert_eq!(value["summary"]["coverage"]["lines"]["percent"], 95.0);
+}
+
+#[test]
+#[cfg(unix)]
+fn check_policy_fails_when_coverage_threshold_has_no_summary() {
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "hello.cpp");
+    let compiler = make_fake_compiler(temp.path(), "policy-no-coverage-clang++");
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args([
+            "check",
+            "hello.cpp",
+            "--compiler",
+            compiler.to_str().unwrap(),
+            "--sanitizers",
+            "none",
+            "--min-line-coverage",
+            "80",
+        ])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("policy: failed"));
+
+    let value = read_report(temp.path());
+    assert_eq!(stage(&value, "policy")["status"], "failed");
+    assert!(stage(&value, "policy")["stderr"]
+        .as_str()
+        .unwrap()
+        .contains("line coverage summary is unavailable"));
+}
+
+#[test]
 fn check_uses_default_yaml_config() {
     if !clang_available() {
         return;
@@ -777,7 +875,14 @@ fn check_cmake_configure_failure_writes_report() {
 
     let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
     cmd.current_dir(temp.path())
-        .args(["check", ".", "--timeout-seconds", "30"])
+        .args([
+            "check",
+            ".",
+            "--timeout-seconds",
+            "30",
+            "--max-warnings",
+            "0",
+        ])
         .assert()
         .failure()
         .stdout(predicate::str::contains("Status: FAILED"))
@@ -786,6 +891,7 @@ fn check_cmake_configure_failure_writes_report() {
     let value = read_report(temp.path());
     assert_eq!(value["status"], "failed");
     assert_eq!(stage(&value, "cmake_configure")["status"], "failed");
+    assert_eq!(stage(&value, "policy")["status"], "skipped");
     assert_eq!(value["summary"]["failed_stages"], 1);
 }
 
@@ -1286,26 +1392,35 @@ fi
 
 #[cfg(unix)]
 fn make_fake_llvm_cov(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
-    make_fake_script(
-        dir,
-        name,
+    make_fake_llvm_cov_with_line_percent(dir, name, 100.0)
+}
+
+#[cfg(unix)]
+fn make_fake_llvm_cov_with_line_percent(
+    dir: &std::path::Path,
+    name: &str,
+    line_percent: f64,
+) -> std::path::PathBuf {
+    let line_covered = line_percent.round() as u64;
+    let body = format!(
         r#"cat <<'JSON'
-{
+{{
   "data": [
-    {
-      "totals": {
-        "lines": { "count": 3, "covered": 3, "percent": 100.0 },
-        "functions": { "count": 1, "covered": 1, "percent": 100.0 },
-        "regions": { "count": 2, "covered": 2, "percent": 100.0 }
-      }
-    }
+    {{
+      "totals": {{
+        "lines": {{ "count": 100, "covered": {line_covered}, "percent": {line_percent} }},
+        "functions": {{ "count": 1, "covered": 1, "percent": 100.0 }},
+        "regions": {{ "count": 2, "covered": 2, "percent": 100.0 }}
+      }}
+    }}
   ],
   "type": "llvm.coverage.json.export",
   "version": "2.0.1"
-}
+}}
 JSON
-"#,
-    )
+"#
+    );
+    make_fake_script(dir, name, &body)
 }
 
 #[cfg(unix)]

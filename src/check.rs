@@ -153,6 +153,7 @@ fn run_source_file(args: ResolvedCheckArgs, source: PathBuf) -> Result<Report, A
     } else {
         None
     };
+    append_policy_stage(&mut stages, &args, coverage.as_ref());
 
     let summary = summarize(&stages, coverage);
     let status = if summary.failed_stages == 0 {
@@ -206,6 +207,7 @@ fn run_compilation_database_with_stages(
     append_clang_tidy_stages(&mut stages, &database, &args, timeout);
     let test_dir = database.path.parent();
     append_test_command_stage(&mut stages, &args, test_dir, timeout);
+    append_policy_stage(&mut stages, &args, None);
 
     build_and_write_report(
         database.path,
@@ -233,6 +235,7 @@ fn run_cmake_project(args: ResolvedCheckArgs, project_dir: PathBuf) -> Result<Re
         if args.coverage {
             append_skipped_cmake_coverage_stages(&mut stages);
         }
+        append_policy_stage(&mut stages, &args, None);
         return build_and_write_report(
             project_dir,
             "from CMake".to_string(),
@@ -275,6 +278,7 @@ fn run_cmake_project(args: ResolvedCheckArgs, project_dir: PathBuf) -> Result<Re
     } else {
         None
     };
+    append_policy_stage(&mut stages, &args, coverage.as_ref());
 
     build_and_write_report_with_coverage(
         project_dir,
@@ -548,6 +552,96 @@ fn shell_command_spec(command: &str) -> CommandSpec {
     CommandSpec::new("cmd").args(["/C", command])
 }
 
+fn append_policy_stage(
+    stages: &mut Vec<StageReport>,
+    args: &ResolvedCheckArgs,
+    coverage: Option<&CoverageSummary>,
+) {
+    if args.max_warnings.is_none() && args.min_line_coverage.is_none() {
+        return;
+    }
+
+    if stages
+        .iter()
+        .any(|stage| stage.status == StageStatus::Failed)
+    {
+        stages.push(StageReport::skipped("policy"));
+        return;
+    }
+
+    stages.push(policy_stage(stages, args, coverage));
+}
+
+fn policy_stage(
+    stages: &[StageReport],
+    args: &ResolvedCheckArgs,
+    coverage: Option<&CoverageSummary>,
+) -> StageReport {
+    let warnings: usize = stages.iter().map(|stage| stage.warnings).sum();
+    let mut failures = Vec::new();
+    let mut passes = Vec::new();
+
+    if let Some(max_warnings) = args.max_warnings {
+        if warnings > max_warnings {
+            failures.push(format!(
+                "warnings {warnings} exceed configured maximum {max_warnings}"
+            ));
+        } else {
+            passes.push(format!("warnings {warnings} <= {max_warnings}"));
+        }
+    }
+
+    if let Some(min_line_coverage) = args.min_line_coverage {
+        match coverage {
+            Some(coverage) if coverage.lines.percent >= min_line_coverage => {
+                passes.push(format!(
+                    "line coverage {:.2}% >= {:.2}%",
+                    coverage.lines.percent, min_line_coverage
+                ));
+            }
+            Some(coverage) => {
+                failures.push(format!(
+                    "line coverage {:.2}% is below configured minimum {:.2}%",
+                    coverage.lines.percent, min_line_coverage
+                ));
+            }
+            None => {
+                failures.push(format!(
+                    "line coverage summary is unavailable; configured minimum is {min_line_coverage:.2}%"
+                ));
+            }
+        }
+    }
+
+    let status = if failures.is_empty() {
+        StageStatus::Passed
+    } else {
+        StageStatus::Failed
+    };
+
+    StageReport {
+        name: "policy".to_string(),
+        status,
+        command: Vec::new(),
+        exit_code: None,
+        timed_out: false,
+        warnings: 0,
+        errors: failures.len(),
+        diagnostics: Vec::new(),
+        stdout: passes.join("\n"),
+        stderr: failures.join("\n"),
+        artifact: None,
+    }
+}
+
+fn validate_coverage_threshold(value: Option<f64>) -> Result<Option<f64>, AppError> {
+    match value {
+        Some(value) if value.is_finite() && (0.0..=100.0).contains(&value) => Ok(Some(value)),
+        Some(value) => Err(AppError::InvalidCoverageThreshold(value)),
+        None => Ok(None),
+    }
+}
+
 enum CheckTarget {
     SourceFile(PathBuf),
     CompilationDatabase(CompilationDatabase),
@@ -599,6 +693,8 @@ struct ResolvedCheckArgs {
     coverage: bool,
     llvm_cov_bin: String,
     llvm_profdata_bin: String,
+    max_warnings: Option<usize>,
+    min_line_coverage: Option<f64>,
 }
 
 impl ResolvedCheckArgs {
@@ -615,10 +711,14 @@ impl ResolvedCheckArgs {
         let config_coverage = config.coverage_enabled();
         let config_llvm_cov_bin = config.llvm_cov_bin();
         let config_llvm_profdata_bin = config.llvm_profdata_bin();
+        let config_max_warnings = config.max_warnings();
+        let config_min_line_coverage = config.min_line_coverage();
         let cli_requested_clang_tidy =
             args.clang_tidy || args.clang_tidy_bin.is_some() || args.clang_tidy_checks.is_some();
         let cli_requested_coverage =
             args.coverage || args.llvm_cov_bin.is_some() || args.llvm_profdata_bin.is_some();
+        let min_line_coverage =
+            validate_coverage_threshold(args.min_line_coverage.or(config_min_line_coverage))?;
 
         Ok(Self {
             file: args.file,
@@ -660,6 +760,8 @@ impl ResolvedCheckArgs {
                 .llvm_profdata_bin
                 .or(config_llvm_profdata_bin)
                 .unwrap_or_else(|| "llvm-profdata".to_string()),
+            max_warnings: args.max_warnings.or(config_max_warnings),
+            min_line_coverage,
         })
     }
 }
