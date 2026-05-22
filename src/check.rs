@@ -39,7 +39,11 @@ pub fn run(args: CheckArgs) -> Result<Report, AppError> {
     let target = CheckTarget::resolve(&args.file)?;
 
     match target {
+        CheckTarget::SourceFile(_) if args.ctest => Err(AppError::CtestRequiresCMakeProject),
         CheckTarget::SourceFile(source) => run_source_file(args, source),
+        CheckTarget::CompilationDatabase(_) if args.ctest => {
+            Err(AppError::CtestRequiresCMakeProject)
+        }
         CheckTarget::CompilationDatabase(database) => run_compilation_database(args, database),
         CheckTarget::CMakeProject(project_dir) => run_cmake_project(args, project_dir),
     }
@@ -200,7 +204,43 @@ fn run_cmake_project(args: ResolvedCheckArgs, project_dir: PathBuf) -> Result<Re
     }
 
     let database = compdb::load_for_target(&build_dir)?;
-    run_compilation_database_with_stages(args, database, vec![cmake_stage])
+    let mut stages = vec![cmake_stage];
+    let timeout = Duration::from_secs(args.timeout_seconds);
+    stages.extend(
+        database
+            .entries
+            .iter()
+            .map(|unit| compilation_database_compile_stage(unit, timeout))
+            .collect::<Result<Vec<_>, _>>()?,
+    );
+
+    if args.ctest {
+        if stages
+            .iter()
+            .all(|stage| stage.status != StageStatus::Failed)
+        {
+            let build_stage = cmake_build_stage(&build_dir, timeout);
+            let build_ok = build_stage.status == StageStatus::Passed;
+            stages.push(build_stage);
+
+            if build_ok {
+                stages.push(ctest_stage(&build_dir, timeout));
+            } else {
+                stages.push(StageReport::skipped("ctest"));
+            }
+        } else {
+            stages.push(StageReport::skipped("cmake_build"));
+            stages.push(StageReport::skipped("ctest"));
+        }
+    }
+
+    build_and_write_report(
+        project_dir,
+        "from CMake".to_string(),
+        "from CMake".to_string(),
+        stages,
+        report_path,
+    )
 }
 
 fn build_and_write_report(
@@ -267,6 +307,45 @@ fn cmake_configure_stage(source_dir: &Path, build_dir: &Path, timeout: Duration)
     }
 }
 
+fn cmake_build_stage(build_dir: &Path, timeout: Duration) -> StageReport {
+    let args = vec!["--build".to_string(), build_dir.display().to_string()];
+    let result = run_command(CommandSpec::new("cmake").args(args), timeout);
+    stage_from_command_result("cmake_build", result, Some(build_dir))
+}
+
+fn ctest_stage(build_dir: &Path, timeout: Duration) -> StageReport {
+    let args = vec![
+        "--test-dir".to_string(),
+        build_dir.display().to_string(),
+        "--output-on-failure".to_string(),
+    ];
+    let result = run_command(CommandSpec::new("ctest").args(args), timeout);
+    stage_from_command_result("ctest", result, Some(build_dir))
+}
+
+fn stage_from_command_result(
+    name: &str,
+    result: Result<crate::runner::CommandResult, AppError>,
+    artifact: Option<&Path>,
+) -> StageReport {
+    match result {
+        Ok(result) => stage_from_result(name, result, artifact),
+        Err(error) => StageReport {
+            name: name.to_string(),
+            status: StageStatus::Failed,
+            command: Vec::new(),
+            exit_code: None,
+            timed_out: false,
+            warnings: 0,
+            errors: 1,
+            diagnostics: Vec::new(),
+            stdout: String::new(),
+            stderr: error.to_string(),
+            artifact: artifact.map(Path::to_path_buf),
+        },
+    }
+}
+
 enum CheckTarget {
     SourceFile(PathBuf),
     CompilationDatabase(CompilationDatabase),
@@ -310,6 +389,7 @@ struct ResolvedCheckArgs {
     artifact_dir: PathBuf,
     report: Option<PathBuf>,
     timeout_seconds: u64,
+    ctest: bool,
 }
 
 impl ResolvedCheckArgs {
@@ -318,6 +398,7 @@ impl ResolvedCheckArgs {
         let config_standard = config.standard()?;
         let config_sanitizers = config.sanitizers_csv();
         let config_report = config.report_path();
+        let config_ctest = config.ctest_enabled();
 
         Ok(Self {
             file: args.file,
@@ -342,6 +423,7 @@ impl ResolvedCheckArgs {
                 .timeout_seconds
                 .or(config.timeout_seconds)
                 .unwrap_or(30),
+            ctest: args.ctest || config_ctest.unwrap_or(false),
         })
     }
 }

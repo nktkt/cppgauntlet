@@ -63,8 +63,10 @@ Each stage describes one command or one skipped pipeline step:
 Current stage names:
 
 - `cmake_configure`
+- `cmake_build`
 - `compile`
 - `compile:<source path>`
+- `ctest`
 - `run`
 - `sanitize_compile`
 - `sanitize_run`

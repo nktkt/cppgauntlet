@@ -38,6 +38,7 @@ cargo run -- check main.cpp
 cargo run -- check ./project
 cargo run -- check ./project/compile_commands.json
 cargo run -- check ./cmake-project
+cargo run -- check ./cmake-project --ctest
 cargo run -- init
 cargo run -- doctor
 cargo run -- --format json check main.cpp

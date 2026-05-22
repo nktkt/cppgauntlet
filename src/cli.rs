@@ -67,6 +67,10 @@ pub struct CheckArgs {
     /// Per-command timeout in seconds.
     #[arg(long)]
     pub timeout_seconds: Option<u64>,
+
+    /// For CMake projects, build the project and run ctest after compile checks.
+    #[arg(long)]
+    pub ctest: bool,
 }
 
 #[derive(Debug, Args)]

@@ -45,6 +45,9 @@ sanitizers:
 
 report:
   path: .cppgauntlet/cppgauntlet-report.json
+
+test:
+  ctest: false
 ```
 
 ## Fields
@@ -55,5 +58,6 @@ report:
 - `timeout_seconds`: per-command timeout
 - `sanitizers.enabled`: `address`, `undefined`, `asan`, `ubsan`, or an empty list
 - `report.path`: explicit JSON report path
+- `test.ctest`: for CMake projects, build and run CTest after compile checks
 
 If `report.path` is omitted, CppGauntlet writes to `<artifact_dir>/cppgauntlet-report.json`.

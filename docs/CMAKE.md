@@ -32,4 +32,26 @@ The JSON report is still written to:
 
 Current CMake support configures the project and validates translation units with syntax-only compile checks.
 
-It does not yet run `cmake --build`, `ctest`, project-level sanitizer builds, or coverage. Those workflows will build on this generated compilation database support.
+## CTest
+
+Use `--ctest` to build the configured project and run CTest:
+
+```bash
+cppgauntlet check ./my-cmake-project --ctest
+```
+
+This adds two stages after syntax-only compile checks:
+
+- `cmake_build`
+- `ctest`
+
+CppGauntlet runs:
+
+```bash
+cmake --build <artifact_dir>/cmake-build
+ctest --test-dir <artifact_dir>/cmake-build --output-on-failure
+```
+
+If syntax-only compile checks fail, `cmake_build` and `ctest` are skipped.
+
+Project-level sanitizer builds and coverage are not implemented yet. Those workflows will build on this generated compilation database and CTest support.

@@ -447,6 +447,94 @@ fn check_cmake_configure_failure_writes_report() {
 }
 
 #[test]
+fn check_cmake_project_can_run_ctest() {
+    if !clang_available() || !cmake_available() || !ctest_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    write_cmake_test_project(temp.path(), "int main() { return 0; }\n");
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args(["check", ".", "--ctest", "--timeout-seconds", "60"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("cmake_build"))
+        .stdout(predicate::str::contains("ctest"));
+
+    let value = read_report(temp.path());
+    assert_eq!(value["status"], "passed");
+    assert_eq!(stage(&value, "cmake_build")["status"], "passed");
+    assert_eq!(stage(&value, "ctest")["status"], "passed");
+}
+
+#[test]
+fn check_cmake_project_reports_ctest_failure() {
+    if !clang_available() || !cmake_available() || !ctest_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    write_cmake_test_project(temp.path(), "int main() { return 3; }\n");
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args(["check", ".", "--ctest", "--timeout-seconds", "60"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("Status: FAILED"));
+
+    let value = read_report(temp.path());
+    assert_eq!(value["status"], "failed");
+    assert_eq!(stage(&value, "cmake_build")["status"], "passed");
+    assert_eq!(stage(&value, "ctest")["status"], "failed");
+}
+
+#[test]
+fn check_cmake_project_can_enable_ctest_from_config() {
+    if !clang_available() || !cmake_available() || !ctest_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    write_cmake_test_project(temp.path(), "int main() { return 0; }\n");
+    fs::write(
+        temp.path().join("cppgauntlet.yaml"),
+        "timeout_seconds: 60\ntest:\n  ctest: true\n",
+    )
+    .unwrap();
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args(["check", "."])
+        .assert()
+        .success();
+
+    let value = read_report(temp.path());
+    assert_eq!(stage(&value, "ctest")["status"], "passed");
+}
+
+#[test]
+fn check_ctest_requires_cmake_project() {
+    if !clang_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "hello.cpp");
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args(["check", "hello.cpp", "--ctest"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "--ctest is only supported when checking a CMake project directory",
+        ));
+}
+
+#[test]
 fn invalid_config_standard_reports_error() {
     let temp = tempdir().unwrap();
     copy_fixture(temp.path(), "hello.cpp");
@@ -610,6 +698,10 @@ fn cmake_available() -> bool {
     StdCommand::new("cmake").arg("--version").output().is_ok()
 }
 
+fn ctest_available() -> bool {
+    StdCommand::new("ctest").arg("--version").output().is_ok()
+}
+
 fn copy_fixture(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
     let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
@@ -669,6 +761,22 @@ project(CppGauntletFixture LANGUAGES CXX)
 add_library(cppgauntlet_fixture src/lib.cpp)
 target_compile_features(cppgauntlet_fixture PRIVATE cxx_std_17)
 target_compile_options(cppgauntlet_fixture PRIVATE -Wall -Wextra -Wpedantic)
+"#,
+    )
+    .unwrap();
+}
+
+fn write_cmake_test_project(dir: &std::path::Path, source: &str) {
+    write_project_source(dir, "src/test.cpp", source);
+    fs::write(
+        dir.join("CMakeLists.txt"),
+        r#"cmake_minimum_required(VERSION 3.16)
+project(CppGauntletCTestFixture LANGUAGES CXX)
+enable_testing()
+add_executable(cppgauntlet_fixture_test src/test.cpp)
+target_compile_features(cppgauntlet_fixture_test PRIVATE cxx_std_17)
+target_compile_options(cppgauntlet_fixture_test PRIVATE -Wall -Wextra -Wpedantic)
+add_test(NAME cppgauntlet_fixture_test COMMAND cppgauntlet_fixture_test)
 "#,
     )
     .unwrap();

@@ -28,6 +28,9 @@ pub struct ProjectConfig {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub report: Option<ReportConfig>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub test: Option<TestConfig>,
 }
 
 impl ProjectConfig {
@@ -43,6 +46,7 @@ impl ProjectConfig {
             report: Some(ReportConfig {
                 path: Some(PathBuf::from(".cppgauntlet/cppgauntlet-report.json")),
             }),
+            test: Some(TestConfig { ctest: Some(false) }),
         }
     }
 
@@ -67,6 +71,10 @@ impl ProjectConfig {
     pub fn report_path(&self) -> Option<PathBuf> {
         self.report.as_ref().and_then(|report| report.path.clone())
     }
+
+    pub fn ctest_enabled(&self) -> Option<bool> {
+        self.test.as_ref().and_then(|test| test.ctest)
+    }
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -81,6 +89,13 @@ pub struct SanitizerConfig {
 pub struct ReportConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub path: Option<PathBuf>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct TestConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ctest: Option<bool>,
 }
 
 pub fn load_config(requested_path: Option<&Path>) -> Result<ProjectConfig, AppError> {
