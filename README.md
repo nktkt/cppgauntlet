@@ -51,6 +51,7 @@ cargo run -- --format markdown check main.cpp
 cargo run -- --format html check main.cpp
 cargo run -- check main.cpp --markdown-report .cppgauntlet/cppgauntlet-report.md
 cargo run -- check main.cpp --html-report .cppgauntlet/cppgauntlet-report.html
+cargo run -- check main.cpp --sarif-report .cppgauntlet/cppgauntlet-report.sarif.json
 cargo run -- init
 cargo run -- doctor
 cargo run -- --format json check main.cpp
@@ -82,6 +83,7 @@ See [docs/TESTING.md](docs/TESTING.md) for CTest and custom test commands.
 See [docs/POLICY.md](docs/POLICY.md) for CI policy gates.
 See [docs/BASELINE.md](docs/BASELINE.md) for diagnostic baselines.
 See [docs/ARTIFACT_REPORTS.md](docs/ARTIFACT_REPORTS.md) for Markdown and HTML reports.
+See [docs/SARIF.md](docs/SARIF.md) for SARIF output.
 
 ## MVP Scope
 
@@ -98,7 +100,7 @@ The first version will focus on a small, useful workflow:
 ## Future Scope
 
 - `compile_commands.json` coverage workflows.
-- SARIF output.
+- GitHub Code Scanning workflow examples.
 - libFuzzer workflows.
 - CI-friendly exit codes.
 - Quality scoring for trend tracking.
@@ -127,6 +129,7 @@ report:
   path: .cppgauntlet/cppgauntlet-report.json
   markdown_path: null
   html_path: null
+  sarif_path: null
 
 test:
   ctest: false
@@ -152,7 +155,7 @@ policy:
 
 ## Project Status
 
-CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, custom test commands, optional `clang-tidy` analysis, single-file and CMake/CTest LLVM coverage, diagnostic baselines and baseline updates, CI policy gates, environment diagnostics, JSON reports, Markdown reports, and HTML reports.
+CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, custom test commands, optional `clang-tidy` analysis, single-file and CMake/CTest LLVM coverage, diagnostic baselines and baseline updates, CI policy gates, environment diagnostics, JSON reports, Markdown reports, HTML reports, and SARIF output.
 
 ## License
 

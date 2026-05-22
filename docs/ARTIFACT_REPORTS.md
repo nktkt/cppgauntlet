@@ -1,6 +1,6 @@
 # Artifact Reports
 
-CppGauntlet can render check results as Markdown or standalone HTML for CI job summaries, pull request comments, or saved build artifacts.
+CppGauntlet can render check results as Markdown or standalone HTML for CI job summaries, pull request comments, or saved build artifacts. SARIF output is documented separately in [SARIF.md](SARIF.md).
 
 ## Stdout Formats
 

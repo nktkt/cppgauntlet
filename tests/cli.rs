@@ -302,6 +302,46 @@ fn check_can_write_html_report_file() {
 }
 
 #[test]
+fn check_can_write_sarif_report_file() {
+    if !clang_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "warning.cpp");
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args([
+            "check",
+            "warning.cpp",
+            "--sanitizers",
+            "none",
+            "--sarif-report",
+            "report.sarif.json",
+        ])
+        .assert()
+        .success();
+
+    let sarif = fs::read_to_string(temp.path().join("report.sarif.json")).unwrap();
+    let sarif: serde_json::Value = serde_json::from_str(&sarif).unwrap();
+    assert_eq!(sarif["version"], "2.1.0");
+    assert_eq!(sarif["runs"][0]["tool"]["driver"]["name"], "CppGauntlet");
+    assert_eq!(
+        sarif["runs"][0]["results"][0]["ruleId"],
+        "cppgauntlet/warning"
+    );
+    assert_eq!(sarif["runs"][0]["results"][0]["level"], "warning");
+    assert_eq!(
+        sarif["runs"][0]["results"][0]["locations"][0]["physicalLocation"]["region"]["startLine"],
+        2
+    );
+
+    let value = read_report(temp.path());
+    assert_eq!(value["sarif_report_path"], "report.sarif.json");
+}
+
+#[test]
 fn check_config_can_write_markdown_report_file() {
     if !clang_available() {
         return;
@@ -355,6 +395,38 @@ report:
 
     let html = fs::read_to_string(temp.path().join("configured-report.html")).unwrap();
     assert!(html.contains("<title>CppGauntlet Check Report</title>"));
+}
+
+#[test]
+fn check_config_can_write_sarif_report_file() {
+    if !clang_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "warning.cpp");
+    fs::write(
+        temp.path().join("cppgauntlet.yaml"),
+        r#"sanitizers:
+  enabled: []
+report:
+  sarif_path: configured-report.sarif.json
+"#,
+    )
+    .unwrap();
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args(["check", "warning.cpp"])
+        .assert()
+        .success();
+
+    let sarif = fs::read_to_string(temp.path().join("configured-report.sarif.json")).unwrap();
+    let sarif: serde_json::Value = serde_json::from_str(&sarif).unwrap();
+    assert_eq!(
+        sarif["runs"][0]["results"][0]["ruleId"],
+        "cppgauntlet/warning"
+    );
 }
 
 #[test]
@@ -942,6 +1014,8 @@ fn baseline_update_writes_reusable_baseline_report() {
             "current.md",
             "--html-report",
             "current.html",
+            "--sarif-report",
+            "current.sarif.json",
         ])
         .assert()
         .success();
@@ -966,6 +1040,7 @@ fn baseline_update_writes_reusable_baseline_report() {
     assert_eq!(baseline["report_path"], "baseline.json");
     assert!(baseline["markdown_report_path"].is_null());
     assert!(baseline["html_report_path"].is_null());
+    assert!(baseline["sarif_report_path"].is_null());
     assert!(baseline["summary"]["baseline"].is_null());
     assert!(stage(&baseline, "compile")["diagnostics"][0]["baseline_status"].is_null());
 

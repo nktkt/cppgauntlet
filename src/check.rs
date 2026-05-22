@@ -178,6 +178,7 @@ fn run_source_file(args: ResolvedCheckArgs, source: PathBuf) -> Result<Report, A
         report_path: report_paths.json,
         markdown_report_path: report_paths.markdown,
         html_report_path: report_paths.html,
+        sarif_report_path: report_paths.sarif,
     };
 
     write_report_outputs(&report)?;
@@ -296,6 +297,7 @@ struct ReportPaths {
     json: PathBuf,
     markdown: Option<PathBuf>,
     html: Option<PathBuf>,
+    sarif: Option<PathBuf>,
 }
 
 fn resolve_report_paths(args: &ResolvedCheckArgs, artifact_root: &Path) -> ReportPaths {
@@ -306,6 +308,7 @@ fn resolve_report_paths(args: &ResolvedCheckArgs, artifact_root: &Path) -> Repor
             .unwrap_or_else(|| artifact_root.join("cppgauntlet-report.json")),
         markdown: args.markdown_report.clone(),
         html: args.html_report.clone(),
+        sarif: args.sarif_report.clone(),
     }
 }
 
@@ -361,6 +364,7 @@ fn build_and_write_report_with_coverage(
         report_path: report_paths.json,
         markdown_report_path: report_paths.markdown,
         html_report_path: report_paths.html,
+        sarif_report_path: report_paths.sarif,
     };
 
     write_report_outputs(&report)?;
@@ -745,6 +749,7 @@ struct ResolvedCheckArgs {
     report: Option<PathBuf>,
     markdown_report: Option<PathBuf>,
     html_report: Option<PathBuf>,
+    sarif_report: Option<PathBuf>,
     timeout_seconds: u64,
     ctest: bool,
     test_command: Option<String>,
@@ -768,6 +773,7 @@ impl ResolvedCheckArgs {
         let config_report = config.report_path();
         let config_markdown_report = config.markdown_report_path();
         let config_html_report = config.html_report_path();
+        let config_sarif_report = config.sarif_report_path();
         let config_ctest = config.ctest_enabled();
         let config_test_command = config.test_command();
         let config_clang_tidy = config.clang_tidy_enabled();
@@ -815,6 +821,7 @@ impl ResolvedCheckArgs {
             report: args.report.or(config_report),
             markdown_report: args.markdown_report.or(config_markdown_report),
             html_report: args.html_report.or(config_html_report),
+            sarif_report: args.sarif_report.or(config_sarif_report),
             timeout_seconds: args
                 .timeout_seconds
                 .or(config.timeout_seconds)
@@ -1517,6 +1524,16 @@ fn write_report_outputs(report: &Report) -> Result<(), AppError> {
             create_dir(parent)?;
         }
         fs::write(path, report.render_html()).map_err(|source| AppError::WriteReport {
+            path: path.clone(),
+            source,
+        })?;
+    }
+
+    if let Some(path) = &report.sarif_report_path {
+        if let Some(parent) = path.parent() {
+            create_dir(parent)?;
+        }
+        fs::write(path, report.render_sarif()).map_err(|source| AppError::WriteReport {
             path: path.clone(),
             source,
         })?;

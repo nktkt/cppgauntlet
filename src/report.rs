@@ -15,6 +15,8 @@ pub struct Report {
     pub markdown_report_path: Option<PathBuf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub html_report_path: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sarif_report_path: Option<PathBuf>,
 }
 
 impl Report {
@@ -204,6 +206,9 @@ impl Report {
         if let Some(path) = &self.html_report_path {
             target_rows.push(html_table_row("HTML report", &path.display().to_string()));
         }
+        if let Some(path) = &self.sarif_report_path {
+            target_rows.push(html_table_row("SARIF report", &path.display().to_string()));
+        }
 
         let mut summary_rows = vec![
             html_table_row("Warnings", &self.summary.warnings.to_string()),
@@ -367,6 +372,79 @@ pre {{ padding: 10px; overflow-x: auto; }}
             diagnostics_html
         )
     }
+
+    pub fn render_sarif(&self) -> String {
+        serde_json::to_string_pretty(&self.render_sarif_value())
+            .expect("SARIF value should be serializable")
+    }
+
+    fn render_sarif_value(&self) -> serde_json::Value {
+        serde_json::json!({
+            "$schema": "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json",
+            "version": "2.1.0",
+            "runs": [
+                {
+                    "tool": {
+                        "driver": {
+                            "name": self.tool.name,
+                            "semanticVersion": self.tool.version,
+                            "informationUri": "https://github.com/nktkt/cppgauntlet",
+                            "rules": sarif_rules()
+                        }
+                    },
+                    "results": self.sarif_results()
+                }
+            ]
+        })
+    }
+
+    fn sarif_results(&self) -> Vec<serde_json::Value> {
+        self.stages
+            .iter()
+            .flat_map(|stage| {
+                stage
+                    .diagnostics
+                    .iter()
+                    .map(move |diagnostic| self.sarif_result(stage, diagnostic))
+            })
+            .collect()
+    }
+
+    fn sarif_result(&self, stage: &StageReport, diagnostic: &Diagnostic) -> serde_json::Value {
+        let mut properties = serde_json::Map::from_iter([
+            (
+                "stage".to_string(),
+                serde_json::Value::String(stage.name.clone()),
+            ),
+            (
+                "raw".to_string(),
+                serde_json::Value::String(diagnostic.raw.clone()),
+            ),
+        ]);
+        if let Some(status) = diagnostic.baseline_status {
+            properties.insert(
+                "baselineStatus".to_string(),
+                serde_json::Value::String(status.as_str().to_string()),
+            );
+        }
+
+        serde_json::json!({
+            "ruleId": diagnostic.sarif_rule_id(),
+            "level": diagnostic.severity.sarif_level(),
+            "message": {
+                "text": diagnostic.message
+            },
+            "locations": [
+                {
+                    "physicalLocation": sarif_physical_location(
+                        &diagnostic.raw,
+                        &self.target.path.display().to_string()
+                    )
+                }
+            ],
+            "properties": properties
+        })
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -509,6 +587,13 @@ impl DiagnosticSeverity {
             Self::Error => "error",
         }
     }
+
+    pub fn sarif_level(self) -> &'static str {
+        match self {
+            Self::Warning => "warning",
+            Self::Error => "error",
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -631,4 +716,103 @@ fn html_escape(value: &str) -> String {
         .replace('>', "&gt;")
         .replace('"', "&quot;")
         .replace('\'', "&#39;")
+}
+
+impl Diagnostic {
+    fn sarif_rule_id(&self) -> &'static str {
+        match self.severity {
+            DiagnosticSeverity::Warning => "cppgauntlet/warning",
+            DiagnosticSeverity::Error => "cppgauntlet/error",
+        }
+    }
+}
+
+fn sarif_rules() -> Vec<serde_json::Value> {
+    vec![
+        serde_json::json!({
+            "id": "cppgauntlet/warning",
+            "name": "CppGauntlet warning",
+            "shortDescription": {
+                "text": "C++ warning reported by CppGauntlet"
+            },
+            "defaultConfiguration": {
+                "level": "warning"
+            }
+        }),
+        serde_json::json!({
+            "id": "cppgauntlet/error",
+            "name": "CppGauntlet error",
+            "shortDescription": {
+                "text": "C++ error reported by CppGauntlet"
+            },
+            "defaultConfiguration": {
+                "level": "error"
+            }
+        }),
+    ]
+}
+
+fn sarif_physical_location(raw: &str, fallback_uri: &str) -> serde_json::Value {
+    if let Some(location) = parse_diagnostic_location(raw) {
+        let mut region = serde_json::Map::from_iter([(
+            "startLine".to_string(),
+            serde_json::Value::from(location.start_line),
+        )]);
+        if let Some(start_column) = location.start_column {
+            region.insert(
+                "startColumn".to_string(),
+                serde_json::Value::from(start_column),
+            );
+        }
+
+        serde_json::json!({
+            "artifactLocation": {
+                "uri": location.uri
+            },
+            "region": region
+        })
+    } else {
+        serde_json::json!({
+            "artifactLocation": {
+                "uri": fallback_uri
+            }
+        })
+    }
+}
+
+#[derive(Debug)]
+struct DiagnosticLocation {
+    uri: String,
+    start_line: u64,
+    start_column: Option<u64>,
+}
+
+fn parse_diagnostic_location(raw: &str) -> Option<DiagnosticLocation> {
+    let colon_positions = raw
+        .char_indices()
+        .filter_map(|(index, ch)| (ch == ':').then_some(index))
+        .collect::<Vec<_>>();
+
+    for window in colon_positions.windows(2) {
+        let path_end = window[0];
+        let line_start = path_end + 1;
+        let line_end = window[1];
+        let column_start = line_end + 1;
+        let column_end = raw[column_start..]
+            .find(':')
+            .map(|offset| column_start + offset)
+            .unwrap_or(raw.len());
+
+        let line = raw[line_start..line_end].parse::<u64>().ok();
+        let column = raw[column_start..column_end].parse::<u64>().ok();
+        if let Some(start_line) = line {
+            return Some(DiagnosticLocation {
+                uri: raw[..path_end].to_string(),
+                start_line,
+                start_column: column,
+            });
+        }
+    }
+
+    None
 }

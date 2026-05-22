@@ -203,6 +203,7 @@ fn normalize_report_for_baseline(report: &mut Report, output: &Path) {
     report.report_path = output.to_path_buf();
     report.markdown_report_path = None;
     report.html_report_path = None;
+    report.sarif_report_path = None;
     report.summary.baseline = None;
 
     for diagnostic in report

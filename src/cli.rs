@@ -101,6 +101,10 @@ pub struct CheckArgs {
     #[arg(long)]
     pub html_report: Option<PathBuf>,
 
+    /// Optional SARIF report path.
+    #[arg(long)]
+    pub sarif_report: Option<PathBuf>,
+
     /// Per-command timeout in seconds.
     #[arg(long)]
     pub timeout_seconds: Option<u64>,
