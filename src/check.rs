@@ -110,7 +110,7 @@ pub fn run(args: CheckArgs) -> Result<Report, AppError> {
     };
 
     let report = Report {
-        schema_version: 1,
+        schema_version: 2,
         tool: ToolInfo {
             name: "CppGauntlet".to_string(),
             version: env!("CARGO_PKG_VERSION").to_string(),
@@ -221,6 +221,7 @@ fn sanitizer_flags(sanitizers: &[Sanitizer]) -> Vec<String> {
     vec![
         "-O1".to_string(),
         "-fno-omit-frame-pointer".to_string(),
+        "-fno-sanitize-recover=all".to_string(),
         format!("-fsanitize={joined}"),
     ]
 }
@@ -229,6 +230,7 @@ fn summarize(stages: &[StageReport]) -> Summary {
     Summary {
         warnings: stages.iter().map(|stage| stage.warnings).sum(),
         errors: stages.iter().map(|stage| stage.errors).sum(),
+        diagnostics: stages.iter().map(|stage| stage.diagnostics.len()).sum(),
         failed_stages: stages
             .iter()
             .filter(|stage| stage.status == StageStatus::Failed)

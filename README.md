@@ -41,6 +41,18 @@ cargo run -- check main.cpp --standard c++23 --sanitizers address,undefined
 
 Generated artifacts are written to `.cppgauntlet/` by default, including `cppgauntlet-report.json`.
 
+The current JSON report schema is version `2`. Each stage records:
+
+- command arguments
+- exit code
+- timeout state
+- warning and error counts
+- structured diagnostics extracted from compiler and sanitizer output
+- raw stdout and stderr
+- generated artifact path
+
+See [docs/REPORT_SCHEMA.md](docs/REPORT_SCHEMA.md) for the current report contract.
+
 ## MVP Scope
 
 The first version will focus on a small, useful workflow:

@@ -68,6 +68,7 @@ pub struct TargetInfo {
 pub struct Summary {
     pub warnings: usize,
     pub errors: usize,
+    pub diagnostics: usize,
     pub failed_stages: usize,
     pub timed_out_stages: usize,
 }
@@ -81,6 +82,7 @@ pub struct StageReport {
     pub timed_out: bool,
     pub warnings: usize,
     pub errors: usize,
+    pub diagnostics: Vec<Diagnostic>,
     pub stdout: String,
     pub stderr: String,
     pub artifact: Option<PathBuf>,
@@ -96,6 +98,7 @@ impl StageReport {
             timed_out: false,
             warnings: 0,
             errors: 0,
+            diagnostics: Vec::new(),
             stdout: String::new(),
             stderr: String::new(),
             artifact: None,
@@ -137,12 +140,43 @@ impl StageStatus {
     }
 }
 
-pub fn count_warnings(stderr: &str) -> usize {
-    stderr.matches("warning:").count()
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Diagnostic {
+    pub severity: DiagnosticSeverity,
+    pub message: String,
+    pub raw: String,
 }
 
-pub fn count_errors(stderr: &str) -> usize {
-    stderr.matches("error:").count()
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DiagnosticSeverity {
+    Warning,
+    Error,
+}
+
+pub fn parse_diagnostics(stderr: &str) -> Vec<Diagnostic> {
+    stderr
+        .lines()
+        .filter_map(|line| {
+            diagnostic_from_marker(line, "runtime error:", DiagnosticSeverity::Error)
+                .or_else(|| diagnostic_from_marker(line, "ERROR:", DiagnosticSeverity::Error))
+                .or_else(|| diagnostic_from_marker(line, "warning:", DiagnosticSeverity::Warning))
+                .or_else(|| diagnostic_from_marker(line, "error:", DiagnosticSeverity::Error))
+        })
+        .collect()
+}
+
+fn diagnostic_from_marker(
+    line: &str,
+    marker: &str,
+    severity: DiagnosticSeverity,
+) -> Option<Diagnostic> {
+    let (_, message) = line.split_once(marker)?;
+    Some(Diagnostic {
+        severity,
+        message: message.trim().to_string(),
+        raw: line.to_string(),
+    })
 }
 
 pub fn stage_from_result(
@@ -150,8 +184,15 @@ pub fn stage_from_result(
     result: crate::runner::CommandResult,
     artifact: Option<&Path>,
 ) -> StageReport {
-    let warnings = count_warnings(&result.stderr);
-    let errors = count_errors(&result.stderr);
+    let diagnostics = parse_diagnostics(&result.stderr);
+    let warnings = diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.severity == DiagnosticSeverity::Warning)
+        .count();
+    let errors = diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.severity == DiagnosticSeverity::Error)
+        .count();
     let status = if result.success() {
         StageStatus::Passed
     } else {
@@ -166,6 +207,7 @@ pub fn stage_from_result(
         timed_out: result.timed_out,
         warnings,
         errors,
+        diagnostics,
         stdout: result.stdout,
         stderr: result.stderr,
         artifact: artifact.map(Path::to_path_buf),
