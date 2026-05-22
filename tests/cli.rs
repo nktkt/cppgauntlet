@@ -129,7 +129,7 @@ fn check_uses_default_yaml_config() {
         r#"standard: c++17
 compiler: clang++
 artifact_dir: configured-artifacts
-timeout_seconds: 5
+timeout_seconds: 30
 sanitizers:
   enabled: []
 "#,
