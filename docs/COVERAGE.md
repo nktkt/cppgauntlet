@@ -54,6 +54,7 @@ It then runs:
 The coverage configure step adds Clang source-based coverage flags through CMake:
 
 ```bash
+-DCMAKE_CXX_COMPILER=<configured compiler>
 -DCMAKE_CXX_FLAGS="-fprofile-instr-generate -fcoverage-mapping"
 -DCMAKE_EXE_LINKER_FLAGS=-fprofile-instr-generate
 -DCMAKE_SHARED_LINKER_FLAGS=-fprofile-instr-generate

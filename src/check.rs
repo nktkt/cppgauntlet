@@ -339,6 +339,7 @@ fn cmake_configure_stage(source_dir: &Path, build_dir: &Path, timeout: Duration)
 fn cmake_coverage_configure_stage(
     source_dir: &Path,
     build_dir: &Path,
+    compiler: &str,
     timeout: Duration,
 ) -> StageReport {
     cmake_configure_stage_with_args(
@@ -346,6 +347,7 @@ fn cmake_coverage_configure_stage(
         source_dir,
         build_dir,
         vec![
+            format!("-DCMAKE_CXX_COMPILER={compiler}"),
             format!("-DCMAKE_CXX_FLAGS={}", coverage_flags().join(" ")),
             "-DCMAKE_EXE_LINKER_FLAGS=-fprofile-instr-generate".to_string(),
             "-DCMAKE_SHARED_LINKER_FLAGS=-fprofile-instr-generate".to_string(),
@@ -835,7 +837,7 @@ fn append_cmake_coverage_stages(
     }
 
     let coverage_configure =
-        cmake_coverage_configure_stage(project_dir, &coverage_build_dir, timeout);
+        cmake_coverage_configure_stage(project_dir, &coverage_build_dir, &args.compiler, timeout);
     let coverage_configure_ok = coverage_configure.status == StageStatus::Passed;
     stages.push(coverage_configure);
     if !coverage_configure_ok {
