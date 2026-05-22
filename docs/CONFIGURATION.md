@@ -62,6 +62,8 @@ coverage:
   enabled: false
   llvm_cov_bin: llvm-cov
   llvm_profdata_bin: llvm-profdata
+  sources: []
+  objects: []
 
 baseline:
   path: null
@@ -92,6 +94,8 @@ policy:
 - `coverage.enabled`: collect source-based coverage for single-file, `compile_commands.json`, and CMake checks
 - `coverage.llvm_cov_bin`: `llvm-cov` executable
 - `coverage.llvm_profdata_bin`: `llvm-profdata` executable
+- `coverage.sources`: optional source paths passed to `llvm-cov export` as `--sources`
+- `coverage.objects`: optional coverage objects or executables passed to `llvm-cov export`
 - `baseline.path`: previous CppGauntlet JSON report used to classify diagnostics as new or existing
 - `policy.max_warnings`: fail the report when total warnings exceed this number
 - `policy.max_analyzer_findings`: fail the report when analyzer diagnostics exceed this number

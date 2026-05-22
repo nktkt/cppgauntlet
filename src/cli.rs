@@ -141,6 +141,14 @@ pub struct CheckArgs {
     #[arg(long)]
     pub llvm_profdata_bin: Option<String>,
 
+    /// Source path to include in llvm-cov export. Repeat to limit coverage output.
+    #[arg(long = "coverage-source")]
+    pub coverage_sources: Vec<PathBuf>,
+
+    /// Coverage object/executable to pass to llvm-cov export. Repeat to override discovery.
+    #[arg(long = "coverage-object")]
+    pub coverage_objects: Vec<PathBuf>,
+
     /// Previous CppGauntlet JSON report to use as a diagnostic baseline.
     #[arg(long)]
     pub baseline: Option<PathBuf>,

@@ -74,6 +74,8 @@ impl ProjectConfig {
                 enabled: Some(false),
                 llvm_cov_bin: Some("llvm-cov".to_string()),
                 llvm_profdata_bin: Some("llvm-profdata".to_string()),
+                sources: Vec::new(),
+                objects: Vec::new(),
             }),
             baseline: Some(BaselineConfig { path: None }),
             policy: Some(PolicyConfig {
@@ -167,6 +169,20 @@ impl ProjectConfig {
             .and_then(|coverage| coverage.llvm_profdata_bin.clone())
     }
 
+    pub fn coverage_sources(&self) -> Vec<PathBuf> {
+        self.coverage
+            .as_ref()
+            .map(|coverage| coverage.sources.clone())
+            .unwrap_or_default()
+    }
+
+    pub fn coverage_objects(&self) -> Vec<PathBuf> {
+        self.coverage
+            .as_ref()
+            .map(|coverage| coverage.objects.clone())
+            .unwrap_or_default()
+    }
+
     pub fn baseline_path(&self) -> Option<PathBuf> {
         self.baseline
             .as_ref()
@@ -253,6 +269,12 @@ pub struct CoverageConfig {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub llvm_profdata_bin: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sources: Vec<PathBuf>,
+
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub objects: Vec<PathBuf>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]

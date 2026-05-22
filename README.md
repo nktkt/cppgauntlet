@@ -41,6 +41,7 @@ cargo run -- check ./cmake-project
 cargo run -- check ./cmake-project --ctest
 cargo run -- check main.cpp --clang-tidy
 cargo run -- check main.cpp --coverage
+cargo run -- check main.cpp --coverage --coverage-source src/main.cpp
 cargo run -- check ./project/compile_commands.json --coverage --test-command "./scripts/test.sh"
 cargo run -- check ./cmake-project --coverage
 cargo run -- check ./project --test-command "make test"
@@ -146,6 +147,8 @@ coverage:
   enabled: false
   llvm_cov_bin: llvm-cov
   llvm_profdata_bin: llvm-profdata
+  sources: []
+  objects: []
 
 baseline:
   path: null

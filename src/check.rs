@@ -796,6 +796,8 @@ struct ResolvedCheckArgs {
     coverage: bool,
     llvm_cov_bin: String,
     llvm_profdata_bin: String,
+    coverage_sources: Vec<PathBuf>,
+    coverage_objects: Vec<PathBuf>,
     baseline: Option<Baseline>,
     max_warnings: Option<usize>,
     max_analyzer_findings: Option<usize>,
@@ -820,6 +822,8 @@ impl ResolvedCheckArgs {
         let config_coverage = config.coverage_enabled();
         let config_llvm_cov_bin = config.llvm_cov_bin();
         let config_llvm_profdata_bin = config.llvm_profdata_bin();
+        let config_coverage_sources = config.coverage_sources();
+        let config_coverage_objects = config.coverage_objects();
         let config_baseline_path = config.baseline_path();
         let config_max_warnings = config.max_warnings();
         let config_max_analyzer_findings = config.max_analyzer_findings();
@@ -830,8 +834,21 @@ impl ResolvedCheckArgs {
             || args.clang_tidy_bin.is_some()
             || args.clang_tidy_checks.is_some()
             || max_analyzer_findings.is_some();
-        let cli_requested_coverage =
-            args.coverage || args.llvm_cov_bin.is_some() || args.llvm_profdata_bin.is_some();
+        let coverage_sources = if args.coverage_sources.is_empty() {
+            config_coverage_sources
+        } else {
+            args.coverage_sources.clone()
+        };
+        let coverage_objects = if args.coverage_objects.is_empty() {
+            config_coverage_objects
+        } else {
+            args.coverage_objects.clone()
+        };
+        let cli_requested_coverage = args.coverage
+            || args.llvm_cov_bin.is_some()
+            || args.llvm_profdata_bin.is_some()
+            || !coverage_sources.is_empty()
+            || !coverage_objects.is_empty();
         let baseline_path = args.baseline.or(config_baseline_path);
         let fail_on_new_diagnostics =
             args.fail_on_new_diagnostics || config_fail_on_new_diagnostics.unwrap_or(false);
@@ -885,6 +902,8 @@ impl ResolvedCheckArgs {
                 .llvm_profdata_bin
                 .or(config_llvm_profdata_bin)
                 .unwrap_or_else(|| "llvm-profdata".to_string()),
+            coverage_sources,
+            coverage_objects,
             baseline,
             max_warnings: args.max_warnings.or(config_max_warnings),
             max_analyzer_findings,
@@ -1135,9 +1154,9 @@ fn append_coverage_stages(
 
     let (coverage_report, coverage) = coverage_report_stage(
         &args.llvm_cov_bin,
-        &[executable],
+        &selected_coverage_objects(args, vec![executable]),
         &profdata,
-        &[source.to_path_buf()],
+        &selected_coverage_sources(args, vec![source.to_path_buf()]),
         &summary_path,
         timeout,
     )?;
@@ -1242,9 +1261,9 @@ fn append_compilation_database_coverage_stages(
     let sources = database.entries.iter().map(source_path).collect::<Vec<_>>();
     let (coverage_report, coverage) = coverage_report_stage(
         &args.llvm_cov_bin,
-        &objects,
+        &selected_coverage_objects(args, objects),
         &profdata,
-        &sources,
+        &selected_coverage_sources(args, sources),
         &summary_path,
         timeout,
     )?;
@@ -1362,15 +1381,37 @@ fn append_cmake_coverage_stages(
     let objects = discover_coverage_objects(&coverage_build_dir);
     let (coverage_report, coverage) = coverage_report_stage(
         &args.llvm_cov_bin,
-        &objects,
+        &selected_coverage_objects(args, objects),
         &profdata,
-        &[],
+        &selected_coverage_sources(args, Vec::new()),
         &summary_path,
         timeout,
     )?;
     stages.push(coverage_report);
 
     Ok(coverage)
+}
+
+fn selected_coverage_sources(
+    args: &ResolvedCheckArgs,
+    default_sources: Vec<PathBuf>,
+) -> Vec<PathBuf> {
+    if args.coverage_sources.is_empty() {
+        default_sources
+    } else {
+        args.coverage_sources.clone()
+    }
+}
+
+fn selected_coverage_objects(
+    args: &ResolvedCheckArgs,
+    default_objects: Vec<PathBuf>,
+) -> Vec<PathBuf> {
+    if args.coverage_objects.is_empty() {
+        default_objects
+    } else {
+        args.coverage_objects.clone()
+    }
 }
 
 fn append_skipped_cmake_coverage_stages(stages: &mut Vec<StageReport>) {
@@ -1445,7 +1486,7 @@ fn coverage_report_stage(
                     "<coverage-object>".to_string(),
                     format!("-instr-profile={}", profdata.display()),
                 ],
-                "no coverage object files were found in the CMake coverage build",
+                "no coverage object files were found",
                 Some(summary_path),
             ),
             None,

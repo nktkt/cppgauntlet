@@ -615,6 +615,52 @@ fn check_source_can_collect_coverage() {
 
 #[test]
 #[cfg(unix)]
+fn check_coverage_can_filter_sources_and_objects() {
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "hello.cpp");
+    let compiler = make_fake_compiler(temp.path(), "filtered-coverage-clang++");
+    let llvm_profdata = make_fake_profdata(temp.path(), "filtered-llvm-profdata");
+    let llvm_cov = make_fake_llvm_cov(temp.path(), "filtered-llvm-cov");
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args([
+            "check",
+            "hello.cpp",
+            "--compiler",
+            compiler.to_str().unwrap(),
+            "--sanitizers",
+            "none",
+            "--coverage",
+            "--coverage-source",
+            "src/interesting.cpp",
+            "--coverage-object",
+            "build/interesting.o",
+            "--coverage-object",
+            "build/helper.o",
+            "--llvm-profdata-bin",
+            llvm_profdata.to_str().unwrap(),
+            "--llvm-cov-bin",
+            llvm_cov.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    let value = read_report(temp.path());
+    let command = stage(&value, "coverage_report")["command"]
+        .as_array()
+        .unwrap();
+    assert!(command.iter().any(|arg| arg == "build/interesting.o"));
+    assert!(command.iter().any(|arg| arg == "--object=build/helper.o"));
+    assert!(command.iter().any(|arg| arg == "--sources"));
+    assert!(command.iter().any(|arg| arg == "src/interesting.cpp"));
+    assert!(!command
+        .iter()
+        .any(|arg| { arg.as_str().unwrap().ends_with("hello.cpp") }));
+}
+
+#[test]
+#[cfg(unix)]
 fn check_config_can_enable_coverage() {
     let temp = tempdir().unwrap();
     copy_fixture(temp.path(), "hello.cpp");
@@ -631,6 +677,10 @@ coverage:
   enabled: true
   llvm_cov_bin: "{}"
   llvm_profdata_bin: "{}"
+  sources:
+    - configured-source.cpp
+  objects:
+    - configured-object.o
 "#,
             compiler.display(),
             llvm_cov.display(),
@@ -648,6 +698,16 @@ coverage:
     let value = read_report(temp.path());
     assert_eq!(stage(&value, "coverage_report")["status"], "passed");
     assert_eq!(value["summary"]["coverage"]["functions"]["covered"], 1);
+    assert!(stage(&value, "coverage_report")["command"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|arg| arg == "configured-object.o"));
+    assert!(stage(&value, "coverage_report")["command"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|arg| arg == "configured-source.cpp"));
 }
 
 #[test]

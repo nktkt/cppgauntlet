@@ -103,15 +103,21 @@ The raw LLVM coverage JSON is written to:
 ```bash
 cppgauntlet check main.cpp \
   --coverage \
+  --coverage-source src/main.cpp \
+  --coverage-object .cppgauntlet/build/main-coverage \
   --llvm-cov-bin llvm-cov \
   --llvm-profdata-bin llvm-profdata
 ```
 
 - `--coverage`: enable coverage collection
+- `--coverage-source`: pass a source path to `llvm-cov export`; repeat to limit coverage output to selected files
+- `--coverage-object`: pass an object or executable to `llvm-cov export`; repeat to override automatic object discovery
 - `--llvm-cov-bin`: override the `llvm-cov` executable path
 - `--llvm-profdata-bin`: override the `llvm-profdata` executable path
 
-Passing either tool override also enables coverage.
+Passing either tool override, source filter, or object override also enables coverage.
+
+When no sources are configured, CppGauntlet uses the checked source file for single-file checks, all compilation database entries for raw `compile_commands.json` checks, and no explicit source filter for CMake checks. When no objects are configured, CppGauntlet uses the generated single-file executable, generated compilation database coverage objects, or discovered CMake coverage objects.
 
 ## Configuration
 
@@ -120,6 +126,10 @@ coverage:
   enabled: true
   llvm_cov_bin: llvm-cov
   llvm_profdata_bin: llvm-profdata
+  sources:
+    - src/main.cpp
+  objects:
+    - .cppgauntlet/build/main-coverage
 ```
 
 If an earlier stage fails, coverage stages are skipped. If `llvm-profdata` or `llvm-cov` fails, the report fails and keeps the raw stdout/stderr for diagnosis.
