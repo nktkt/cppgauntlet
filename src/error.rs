@@ -44,6 +44,9 @@ pub enum AppError {
     #[error("invalid coverage threshold {0}. Expected a value between 0 and 100")]
     InvalidCoverageThreshold(f64),
 
+    #[error("--fail-on-new-diagnostics requires --baseline or baseline.path")]
+    BaselineRequired,
+
     #[error("configuration file already exists: {0}. Use --force to overwrite it")]
     ConfigExists(PathBuf),
 
@@ -59,10 +62,22 @@ pub enum AppError {
         source: std::io::Error,
     },
 
+    #[error("failed to read baseline report {path}: {source}")]
+    ReadBaseline {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+
     #[error("failed to parse configuration {path}: {source}")]
     ParseConfig {
         path: PathBuf,
         source: serde_yml::Error,
+    },
+
+    #[error("failed to parse baseline report {path}: {source}")]
+    ParseBaseline {
+        path: PathBuf,
+        source: serde_json::Error,
     },
 
     #[error("failed to write configuration {path}: {source}")]

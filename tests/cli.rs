@@ -585,6 +585,186 @@ fn check_policy_fails_when_coverage_threshold_has_no_summary() {
 }
 
 #[test]
+fn check_baseline_marks_existing_diagnostics_without_failing() {
+    if !clang_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "warning.cpp");
+    let baseline_path = temp.path().join("baseline.json");
+    let current_path = temp.path().join("current.json");
+
+    let mut baseline = Command::cargo_bin("cppgauntlet").unwrap();
+    baseline
+        .current_dir(temp.path())
+        .args([
+            "check",
+            "warning.cpp",
+            "--sanitizers",
+            "none",
+            "--report",
+            baseline_path.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args([
+            "check",
+            "warning.cpp",
+            "--sanitizers",
+            "none",
+            "--baseline",
+            baseline_path.to_str().unwrap(),
+            "--report",
+            current_path.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Baseline: 0 new"));
+
+    let value = read_report_at(current_path);
+    assert_eq!(value["status"], "passed");
+    assert_eq!(
+        value["summary"]["baseline"]["new_diagnostic_occurrences"],
+        0
+    );
+    assert_eq!(
+        stage(&value, "compile")["diagnostics"][0]["baseline_status"],
+        "existing"
+    );
+}
+
+#[test]
+fn check_policy_fails_on_new_diagnostics_against_baseline() {
+    if !clang_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "hello.cpp");
+    copy_fixture(temp.path(), "warning.cpp");
+    let baseline_path = temp.path().join("baseline.json");
+    let current_path = temp.path().join("current.json");
+
+    let mut baseline = Command::cargo_bin("cppgauntlet").unwrap();
+    baseline
+        .current_dir(temp.path())
+        .args([
+            "check",
+            "hello.cpp",
+            "--sanitizers",
+            "none",
+            "--report",
+            baseline_path.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args([
+            "check",
+            "warning.cpp",
+            "--sanitizers",
+            "none",
+            "--baseline",
+            baseline_path.to_str().unwrap(),
+            "--fail-on-new-diagnostics",
+            "--report",
+            current_path.to_str().unwrap(),
+        ])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("policy: failed"));
+
+    let value = read_report_at(current_path);
+    assert_eq!(value["status"], "failed");
+    assert_eq!(
+        value["summary"]["baseline"]["new_diagnostic_occurrences"],
+        1
+    );
+    assert_eq!(
+        stage(&value, "compile")["diagnostics"][0]["baseline_status"],
+        "new"
+    );
+    assert!(stage(&value, "policy")["stderr"]
+        .as_str()
+        .unwrap()
+        .contains("new diagnostics 1 exceed baseline"));
+}
+
+#[test]
+fn check_config_can_enable_baseline_policy() {
+    if !clang_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "hello.cpp");
+    copy_fixture(temp.path(), "warning.cpp");
+
+    let mut baseline = Command::cargo_bin("cppgauntlet").unwrap();
+    baseline
+        .current_dir(temp.path())
+        .args([
+            "check",
+            "hello.cpp",
+            "--sanitizers",
+            "none",
+            "--report",
+            "baseline.json",
+        ])
+        .assert()
+        .success();
+
+    fs::write(
+        temp.path().join("cppgauntlet.yaml"),
+        r#"sanitizers:
+  enabled: []
+baseline:
+  path: baseline.json
+policy:
+  fail_on_new_diagnostics: true
+"#,
+    )
+    .unwrap();
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args(["check", "warning.cpp"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("policy: failed"));
+
+    let value = read_report(temp.path());
+    assert_eq!(stage(&value, "policy")["status"], "failed");
+    assert_eq!(
+        value["summary"]["baseline"]["new_diagnostic_occurrences"],
+        1
+    );
+}
+
+#[test]
+fn check_fail_on_new_diagnostics_requires_baseline() {
+    if !clang_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "hello.cpp");
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args(["check", "hello.cpp", "--fail-on-new-diagnostics"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("requires --baseline"));
+}
+
+#[test]
 fn check_uses_default_yaml_config() {
     if !clang_available() {
         return;

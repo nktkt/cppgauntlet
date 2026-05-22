@@ -1,3 +1,4 @@
+mod baseline;
 mod check;
 mod cli;
 mod compdb;

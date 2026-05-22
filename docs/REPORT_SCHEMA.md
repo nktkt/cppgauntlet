@@ -39,6 +39,14 @@ Report and stage status values use snake case:
     "lines": { "count": 10, "covered": 9, "percent": 90.0 },
     "functions": { "count": 2, "covered": 2, "percent": 100.0 },
     "regions": { "count": 6, "covered": 5, "percent": 83.33 }
+  },
+  "baseline": {
+    "path": ".cppgauntlet/baseline.json",
+    "baseline_unique_diagnostics": 1,
+    "current_unique_diagnostics": 1,
+    "new_unique_diagnostics": 0,
+    "new_diagnostic_occurrences": 0,
+    "resolved_unique_diagnostics": 0
   }
 }
 ```
@@ -46,6 +54,7 @@ Report and stage status values use snake case:
 Warnings do not fail a report unless the `policy.max_warnings` gate is configured. Compile failures, runtime failures, sanitizer failures, policy failures, and timeouts do fail a report.
 `clang-tidy` warnings do not fail a report unless the `clang-tidy` process itself exits non-zero.
 The `coverage` object is omitted when coverage is not enabled or when coverage collection fails before a summary can be parsed. If all earlier stages pass, a configured `policy.min_line_coverage` gate fails when this summary is unavailable.
+The `baseline` object is omitted when no baseline report is configured.
 
 ## Stage
 
@@ -99,7 +108,8 @@ Diagnostics are extracted from compiler, sanitizer, and `clang-tidy` stdout/stde
 {
   "severity": "warning",
   "message": "unused variable 'unused' [-Wunused-variable]",
-  "raw": "main.cpp:2:9: warning: unused variable 'unused' [-Wunused-variable]"
+  "raw": "main.cpp:2:9: warning: unused variable 'unused' [-Wunused-variable]",
+  "baseline_status": "existing"
 }
 ```
 
@@ -107,5 +117,7 @@ Current severity values:
 
 - `warning`
 - `error`
+
+When a baseline report is configured, `baseline_status` is either `existing` or `new`. The field is omitted when no baseline was used.
 
 CppGauntlet keeps the full raw stdout and stderr for every stage because diagnostic parsing will become more precise over time.

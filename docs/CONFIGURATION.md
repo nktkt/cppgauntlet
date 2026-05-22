@@ -60,9 +60,13 @@ coverage:
   llvm_cov_bin: llvm-cov
   llvm_profdata_bin: llvm-profdata
 
+baseline:
+  path: null
+
 policy:
   max_warnings: null
   min_line_coverage: null
+  fail_on_new_diagnostics: false
 ```
 
 ## Fields
@@ -81,7 +85,9 @@ policy:
 - `coverage.enabled`: collect source-based coverage for single-file and CMake checks
 - `coverage.llvm_cov_bin`: `llvm-cov` executable
 - `coverage.llvm_profdata_bin`: `llvm-profdata` executable
+- `baseline.path`: previous CppGauntlet JSON report used to classify diagnostics as new or existing
 - `policy.max_warnings`: fail the report when total warnings exceed this number
 - `policy.min_line_coverage`: fail the report when line coverage is below this percentage
+- `policy.fail_on_new_diagnostics`: fail the report when diagnostics are not present in the baseline report
 
 If `report.path` is omitted, CppGauntlet writes to `<artifact_dir>/cppgauntlet-report.json`.

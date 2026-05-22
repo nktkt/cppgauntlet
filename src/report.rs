@@ -28,6 +28,7 @@ impl Report {
             format!("Warnings: {}", self.summary.warnings),
             format!("Errors: {}", self.summary.errors),
             coverage_line(&self.summary),
+            baseline_line(&self.summary),
             format!("Report: {}", self.report_path.display()),
             String::new(),
             "Stages:".to_string(),
@@ -74,6 +75,8 @@ pub struct Summary {
     pub timed_out_stages: usize,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub coverage: Option<CoverageSummary>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub baseline: Option<BaselineSummary>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -88,6 +91,16 @@ pub struct CoverageMetric {
     pub count: u64,
     pub covered: u64,
     pub percent: f64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct BaselineSummary {
+    pub path: PathBuf,
+    pub baseline_unique_diagnostics: usize,
+    pub current_unique_diagnostics: usize,
+    pub new_unique_diagnostics: usize,
+    pub new_diagnostic_occurrences: usize,
+    pub resolved_unique_diagnostics: usize,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -162,6 +175,8 @@ pub struct Diagnostic {
     pub severity: DiagnosticSeverity,
     pub message: String,
     pub raw: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub baseline_status: Option<DiagnosticBaselineStatus>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -169,6 +184,13 @@ pub struct Diagnostic {
 pub enum DiagnosticSeverity {
     Warning,
     Error,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DiagnosticBaselineStatus {
+    Existing,
+    New,
 }
 
 pub fn parse_diagnostics(stderr: &str) -> Vec<Diagnostic> {
@@ -193,6 +215,7 @@ fn diagnostic_from_marker(
         severity,
         message: message.trim().to_string(),
         raw: line.to_string(),
+        baseline_status: None,
     })
 }
 
@@ -238,4 +261,19 @@ fn coverage_line(summary: &Summary) -> String {
         .as_ref()
         .map(|coverage| format!("Line Coverage: {:.2}%", coverage.lines.percent))
         .unwrap_or_else(|| "Line Coverage: n/a".to_string())
+}
+
+fn baseline_line(summary: &Summary) -> String {
+    summary
+        .baseline
+        .as_ref()
+        .map(|baseline| {
+            format!(
+                "Baseline: {} new, {} resolved ({})",
+                baseline.new_diagnostic_occurrences,
+                baseline.resolved_unique_diagnostics,
+                baseline.path.display()
+            )
+        })
+        .unwrap_or_else(|| "Baseline: n/a".to_string())
 }

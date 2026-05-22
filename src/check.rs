@@ -2,13 +2,14 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use crate::baseline::Baseline;
 use crate::cli::{CheckArgs, CppStandard};
 use crate::compdb::{self, CompilationDatabase, CompilationUnit};
 use crate::config;
 use crate::error::AppError;
 use crate::report::{
-    stage_from_result, CoverageMetric, CoverageSummary, Report, ReportStatus, StageReport,
-    StageStatus, Summary, TargetInfo, ToolInfo,
+    stage_from_result, BaselineSummary, CoverageMetric, CoverageSummary, Report, ReportStatus,
+    StageReport, StageStatus, Summary, TargetInfo, ToolInfo,
 };
 use crate::runner::{run_command, CommandSpec};
 
@@ -153,9 +154,10 @@ fn run_source_file(args: ResolvedCheckArgs, source: PathBuf) -> Result<Report, A
     } else {
         None
     };
-    append_policy_stage(&mut stages, &args, coverage.as_ref());
+    let baseline = apply_baseline(&mut stages, &args);
+    append_policy_stage(&mut stages, &args, coverage.as_ref(), baseline.as_ref());
 
-    let summary = summarize(&stages, coverage);
+    let summary = summarize(&stages, coverage, baseline);
     let status = if summary.failed_stages == 0 {
         ReportStatus::Passed
     } else {
@@ -207,7 +209,8 @@ fn run_compilation_database_with_stages(
     append_clang_tidy_stages(&mut stages, &database, &args, timeout);
     let test_dir = database.path.parent();
     append_test_command_stage(&mut stages, &args, test_dir, timeout);
-    append_policy_stage(&mut stages, &args, None);
+    let baseline = apply_baseline(&mut stages, &args);
+    append_policy_stage(&mut stages, &args, None, baseline.as_ref());
 
     build_and_write_report(
         database.path,
@@ -215,6 +218,7 @@ fn run_compilation_database_with_stages(
         "from compilation database".to_string(),
         stages,
         report_path,
+        baseline,
     )
 }
 
@@ -235,13 +239,15 @@ fn run_cmake_project(args: ResolvedCheckArgs, project_dir: PathBuf) -> Result<Re
         if args.coverage {
             append_skipped_cmake_coverage_stages(&mut stages);
         }
-        append_policy_stage(&mut stages, &args, None);
+        let baseline = apply_baseline(&mut stages, &args);
+        append_policy_stage(&mut stages, &args, None, baseline.as_ref());
         return build_and_write_report(
             project_dir,
             "from CMake".to_string(),
             "from CMake".to_string(),
             stages,
             report_path,
+            baseline,
         );
     }
 
@@ -278,7 +284,8 @@ fn run_cmake_project(args: ResolvedCheckArgs, project_dir: PathBuf) -> Result<Re
     } else {
         None
     };
-    append_policy_stage(&mut stages, &args, coverage.as_ref());
+    let baseline = apply_baseline(&mut stages, &args);
+    append_policy_stage(&mut stages, &args, coverage.as_ref(), baseline.as_ref());
 
     build_and_write_report_with_coverage(
         project_dir,
@@ -287,6 +294,7 @@ fn run_cmake_project(args: ResolvedCheckArgs, project_dir: PathBuf) -> Result<Re
         stages,
         report_path,
         coverage,
+        baseline,
     )
 }
 
@@ -296,8 +304,17 @@ fn build_and_write_report(
     compiler: String,
     stages: Vec<StageReport>,
     report_path: PathBuf,
+    baseline: Option<BaselineSummary>,
 ) -> Result<Report, AppError> {
-    build_and_write_report_with_coverage(target_path, standard, compiler, stages, report_path, None)
+    build_and_write_report_with_coverage(
+        target_path,
+        standard,
+        compiler,
+        stages,
+        report_path,
+        None,
+        baseline,
+    )
 }
 
 fn build_and_write_report_with_coverage(
@@ -307,8 +324,9 @@ fn build_and_write_report_with_coverage(
     stages: Vec<StageReport>,
     report_path: PathBuf,
     coverage: Option<CoverageSummary>,
+    baseline: Option<BaselineSummary>,
 ) -> Result<Report, AppError> {
-    let summary = summarize(&stages, coverage);
+    let summary = summarize(&stages, coverage, baseline);
     let status = if summary.failed_stages == 0 {
         ReportStatus::Passed
     } else {
@@ -556,8 +574,12 @@ fn append_policy_stage(
     stages: &mut Vec<StageReport>,
     args: &ResolvedCheckArgs,
     coverage: Option<&CoverageSummary>,
+    baseline: Option<&BaselineSummary>,
 ) {
-    if args.max_warnings.is_none() && args.min_line_coverage.is_none() {
+    if args.max_warnings.is_none()
+        && args.min_line_coverage.is_none()
+        && !args.fail_on_new_diagnostics
+    {
         return;
     }
 
@@ -569,13 +591,14 @@ fn append_policy_stage(
         return;
     }
 
-    stages.push(policy_stage(stages, args, coverage));
+    stages.push(policy_stage(stages, args, coverage, baseline));
 }
 
 fn policy_stage(
     stages: &[StageReport],
     args: &ResolvedCheckArgs,
     coverage: Option<&CoverageSummary>,
+    baseline: Option<&BaselineSummary>,
 ) -> StageReport {
     let warnings: usize = stages.iter().map(|stage| stage.warnings).sum();
     let mut failures = Vec::new();
@@ -613,6 +636,23 @@ fn policy_stage(
         }
     }
 
+    if args.fail_on_new_diagnostics {
+        match baseline {
+            Some(baseline) if baseline.new_diagnostic_occurrences == 0 => {
+                passes.push("new diagnostics 0 <= 0".to_string());
+            }
+            Some(baseline) => {
+                failures.push(format!(
+                    "new diagnostics {} exceed baseline allowance 0",
+                    baseline.new_diagnostic_occurrences
+                ));
+            }
+            None => {
+                failures.push("new diagnostic policy requires a baseline summary".to_string());
+            }
+        }
+    }
+
     let status = if failures.is_empty() {
         StageStatus::Passed
     } else {
@@ -632,6 +672,12 @@ fn policy_stage(
         stderr: failures.join("\n"),
         artifact: None,
     }
+}
+
+fn apply_baseline(stages: &mut [StageReport], args: &ResolvedCheckArgs) -> Option<BaselineSummary> {
+    args.baseline
+        .as_ref()
+        .map(|baseline| baseline.compare(stages))
 }
 
 fn validate_coverage_threshold(value: Option<f64>) -> Result<Option<f64>, AppError> {
@@ -693,8 +739,10 @@ struct ResolvedCheckArgs {
     coverage: bool,
     llvm_cov_bin: String,
     llvm_profdata_bin: String,
+    baseline: Option<Baseline>,
     max_warnings: Option<usize>,
     min_line_coverage: Option<f64>,
+    fail_on_new_diagnostics: bool,
 }
 
 impl ResolvedCheckArgs {
@@ -711,12 +759,21 @@ impl ResolvedCheckArgs {
         let config_coverage = config.coverage_enabled();
         let config_llvm_cov_bin = config.llvm_cov_bin();
         let config_llvm_profdata_bin = config.llvm_profdata_bin();
+        let config_baseline_path = config.baseline_path();
         let config_max_warnings = config.max_warnings();
         let config_min_line_coverage = config.min_line_coverage();
+        let config_fail_on_new_diagnostics = config.fail_on_new_diagnostics();
         let cli_requested_clang_tidy =
             args.clang_tidy || args.clang_tidy_bin.is_some() || args.clang_tidy_checks.is_some();
         let cli_requested_coverage =
             args.coverage || args.llvm_cov_bin.is_some() || args.llvm_profdata_bin.is_some();
+        let baseline_path = args.baseline.or(config_baseline_path);
+        let fail_on_new_diagnostics =
+            args.fail_on_new_diagnostics || config_fail_on_new_diagnostics.unwrap_or(false);
+        if fail_on_new_diagnostics && baseline_path.is_none() {
+            return Err(AppError::BaselineRequired);
+        }
+        let baseline = baseline_path.as_deref().map(Baseline::load).transpose()?;
         let min_line_coverage =
             validate_coverage_threshold(args.min_line_coverage.or(config_min_line_coverage))?;
 
@@ -760,8 +817,10 @@ impl ResolvedCheckArgs {
                 .llvm_profdata_bin
                 .or(config_llvm_profdata_bin)
                 .unwrap_or_else(|| "llvm-profdata".to_string()),
+            baseline,
             max_warnings: args.max_warnings.or(config_max_warnings),
             min_line_coverage,
+            fail_on_new_diagnostics,
         })
     }
 }
@@ -1390,7 +1449,11 @@ fn sanitizer_flags(sanitizers: &[Sanitizer]) -> Vec<String> {
     ]
 }
 
-fn summarize(stages: &[StageReport], coverage: Option<CoverageSummary>) -> Summary {
+fn summarize(
+    stages: &[StageReport],
+    coverage: Option<CoverageSummary>,
+    baseline: Option<BaselineSummary>,
+) -> Summary {
     Summary {
         warnings: stages.iter().map(|stage| stage.warnings).sum(),
         errors: stages.iter().map(|stage| stage.errors).sum(),
@@ -1401,6 +1464,7 @@ fn summarize(stages: &[StageReport], coverage: Option<CoverageSummary>) -> Summa
             .count(),
         timed_out_stages: stages.iter().filter(|stage| stage.timed_out).count(),
         coverage,
+        baseline,
     }
 }
 

@@ -101,6 +101,10 @@ pub struct CheckArgs {
     #[arg(long)]
     pub llvm_profdata_bin: Option<String>,
 
+    /// Previous CppGauntlet JSON report to use as a diagnostic baseline.
+    #[arg(long)]
+    pub baseline: Option<PathBuf>,
+
     /// Fail the report when total warnings exceed this number.
     #[arg(long)]
     pub max_warnings: Option<usize>,
@@ -108,6 +112,10 @@ pub struct CheckArgs {
     /// Fail the report when line coverage is below this percentage.
     #[arg(long, value_parser = parse_percentage)]
     pub min_line_coverage: Option<f64>,
+
+    /// Fail the report when diagnostics are not present in the baseline report.
+    #[arg(long)]
+    pub fail_on_new_diagnostics: bool,
 }
 
 #[derive(Debug, Args)]

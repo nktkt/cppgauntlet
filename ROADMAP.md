@@ -195,7 +195,7 @@ Exit criteria:
 
 1. Extend coverage to raw `compile_commands.json` workflows.
 2. Expand policy gates to analyzer findings and changed-line coverage.
-3. Add baseline support to distinguish new issues from existing debt.
+3. Add baseline update/export commands for CI artifact workflows.
 4. Add Markdown and HTML report outputs.
 5. Create contribution and issue templates before the first public release milestone.
 6. Add release packaging metadata and installation docs.
