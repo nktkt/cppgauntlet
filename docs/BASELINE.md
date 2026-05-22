@@ -4,10 +4,16 @@ CppGauntlet can compare the current run against a previous JSON report. This let
 
 ## CLI Usage
 
-Create or store a baseline report:
+Create a regular check report:
 
 ```bash
-cppgauntlet check main.cpp --report .cppgauntlet/baseline.json
+cppgauntlet check main.cpp --report .cppgauntlet/cppgauntlet-report.json
+```
+
+Export that report as a reusable baseline:
+
+```bash
+cppgauntlet baseline update --report .cppgauntlet/cppgauntlet-report.json --output .cppgauntlet/baseline.json
 ```
 
 Compare a future run against that baseline:
@@ -33,6 +39,25 @@ policy:
 ```
 
 CLI arguments take precedence over configuration values.
+
+## Updating Baselines
+
+`baseline update` reads a CppGauntlet JSON report, validates it, removes transient baseline comparison fields, and writes a normalized JSON report that can be used with `--baseline`.
+
+Default paths:
+
+```bash
+cppgauntlet baseline update
+```
+
+This reads `.cppgauntlet/cppgauntlet-report.json` and writes `.cppgauntlet/baseline.json`.
+
+The command also supports machine-readable output:
+
+```bash
+cppgauntlet --format json baseline update --report current.json --output baseline.json
+cppgauntlet --format markdown baseline update --report current.json --output baseline.json
+```
 
 ## Report Output
 

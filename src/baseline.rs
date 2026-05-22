@@ -2,6 +2,9 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use serde::Serialize;
+
+use crate::cli::{BaselineArgs, BaselineCommands, BaselineUpdateArgs};
 use crate::error::AppError;
 use crate::report::{
     BaselineSummary, Diagnostic, DiagnosticBaselineStatus, DiagnosticSeverity, Report, StageReport,
@@ -70,6 +73,135 @@ impl Baseline {
     }
 }
 
+#[derive(Clone, Debug, Serialize)]
+pub struct BaselineUpdateReport {
+    pub schema_version: u32,
+    pub source_report: PathBuf,
+    pub output: PathBuf,
+    pub diagnostics: usize,
+    pub unique_diagnostics: usize,
+    pub stages: usize,
+}
+
+impl BaselineUpdateReport {
+    pub fn render_text(&self) -> String {
+        [
+            "CppGauntlet Baseline".to_string(),
+            "Status: UPDATED".to_string(),
+            format!("Source report: {}", self.source_report.display()),
+            format!("Output: {}", self.output.display()),
+            format!("Diagnostics: {}", self.diagnostics),
+            format!("Unique diagnostics: {}", self.unique_diagnostics),
+            format!("Stages: {}", self.stages),
+        ]
+        .join("\n")
+    }
+
+    pub fn render_markdown(&self) -> String {
+        [
+            "# CppGauntlet Baseline".to_string(),
+            String::new(),
+            "| Field | Value |".to_string(),
+            "| --- | --- |".to_string(),
+            "| Status | updated |".to_string(),
+            format!(
+                "| Source report | `{}` |",
+                markdown_cell(&self.source_report.display().to_string())
+            ),
+            format!(
+                "| Output | `{}` |",
+                markdown_cell(&self.output.display().to_string())
+            ),
+            format!("| Diagnostics | {} |", self.diagnostics),
+            format!("| Unique diagnostics | {} |", self.unique_diagnostics),
+            format!("| Stages | {} |", self.stages),
+        ]
+        .join("\n")
+    }
+}
+
+pub fn run(args: BaselineArgs) -> Result<BaselineUpdateReport, AppError> {
+    match args.command {
+        BaselineCommands::Update(args) => update(args),
+    }
+}
+
+fn update(args: BaselineUpdateArgs) -> Result<BaselineUpdateReport, AppError> {
+    let mut report = read_report(&args.report)?;
+    let diagnostics = report
+        .stages
+        .iter()
+        .map(|stage| stage.diagnostics.len())
+        .sum();
+    let unique_diagnostics = unique_diagnostic_count(&report);
+    let stages = report.stages.len();
+
+    normalize_report_for_baseline(&mut report, &args.output);
+    write_baseline(&args.output, &report)?;
+
+    Ok(BaselineUpdateReport {
+        schema_version: 1,
+        source_report: args.report,
+        output: args.output,
+        diagnostics,
+        unique_diagnostics,
+        stages,
+    })
+}
+
+fn read_report(path: &Path) -> Result<Report, AppError> {
+    let contents = fs::read_to_string(path).map_err(|source| AppError::ReadReport {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    serde_json::from_str(&contents).map_err(|source| AppError::ParseReport {
+        path: path.to_path_buf(),
+        source,
+    })
+}
+
+fn normalize_report_for_baseline(report: &mut Report, output: &Path) {
+    report.report_path = output.to_path_buf();
+    report.markdown_report_path = None;
+    report.summary.baseline = None;
+
+    for diagnostic in report
+        .stages
+        .iter_mut()
+        .flat_map(|stage| stage.diagnostics.iter_mut())
+    {
+        diagnostic.baseline_status = None;
+    }
+}
+
+fn write_baseline(path: &Path, report: &Report) -> Result<(), AppError> {
+    if let Some(parent) = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
+        fs::create_dir_all(parent).map_err(|source| AppError::CreateDir {
+            path: parent.to_path_buf(),
+            source,
+        })?;
+    }
+
+    let serialized = serde_json::to_string_pretty(report)?;
+    fs::write(path, serialized).map_err(|source| AppError::WriteBaseline {
+        path: path.to_path_buf(),
+        source,
+    })
+}
+
+fn unique_diagnostic_count(report: &Report) -> usize {
+    report
+        .stages
+        .iter()
+        .flat_map(|stage| stage.diagnostics.iter())
+        .map(fingerprint)
+        .collect::<HashSet<_>>()
+        .len()
+}
+
 fn fingerprint(diagnostic: &Diagnostic) -> String {
     format!(
         "{}\0{}\0{}",
@@ -88,4 +220,8 @@ fn severity_key(severity: DiagnosticSeverity) -> &'static str {
 
 fn normalize(value: &str) -> String {
     value.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn markdown_cell(value: &str) -> String {
+    value.replace('|', "\\|").replace('\n', " ")
 }

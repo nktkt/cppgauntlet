@@ -52,6 +52,23 @@ fn run(cli: Cli) -> Result<bool, AppError> {
 
             Ok(success)
         }
+        Commands::Baseline(args) => {
+            let report = baseline::run(args)?;
+
+            match cli.format {
+                OutputFormat::Text => {
+                    println!("{}", report.render_text());
+                }
+                OutputFormat::Json => {
+                    println!("{}", serde_json::to_string_pretty(&report)?);
+                }
+                OutputFormat::Markdown => {
+                    println!("{}", report.render_markdown());
+                }
+            }
+
+            Ok(true)
+        }
         Commands::Doctor(args) => {
             let report = doctor::run(args)?;
             let success = report.is_success();

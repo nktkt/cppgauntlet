@@ -68,6 +68,12 @@ pub enum AppError {
         source: std::io::Error,
     },
 
+    #[error("failed to read report {path}: {source}")]
+    ReadReport {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+
     #[error("failed to parse configuration {path}: {source}")]
     ParseConfig {
         path: PathBuf,
@@ -80,6 +86,12 @@ pub enum AppError {
         source: serde_json::Error,
     },
 
+    #[error("failed to parse report {path}: {source}")]
+    ParseReport {
+        path: PathBuf,
+        source: serde_json::Error,
+    },
+
     #[error("failed to write configuration {path}: {source}")]
     WriteConfig {
         path: PathBuf,
@@ -88,6 +100,12 @@ pub enum AppError {
 
     #[error("failed to write report {path}: {source}")]
     WriteReport {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+
+    #[error("failed to write baseline report {path}: {source}")]
+    WriteBaseline {
         path: PathBuf,
         source: std::io::Error,
     },

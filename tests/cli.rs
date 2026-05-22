@@ -833,6 +833,152 @@ policy:
 }
 
 #[test]
+fn baseline_update_writes_reusable_baseline_report() {
+    if !clang_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "warning.cpp");
+
+    let mut check = Command::cargo_bin("cppgauntlet").unwrap();
+    check
+        .current_dir(temp.path())
+        .args([
+            "check",
+            "warning.cpp",
+            "--sanitizers",
+            "none",
+            "--report",
+            "current.json",
+            "--markdown-report",
+            "current.md",
+        ])
+        .assert()
+        .success();
+
+    let mut update = Command::cargo_bin("cppgauntlet").unwrap();
+    update
+        .current_dir(temp.path())
+        .args([
+            "baseline",
+            "update",
+            "--report",
+            "current.json",
+            "--output",
+            "baseline.json",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Status: UPDATED"))
+        .stdout(predicate::str::contains("Unique diagnostics: 1"));
+
+    let baseline = read_report_at(temp.path().join("baseline.json"));
+    assert_eq!(baseline["report_path"], "baseline.json");
+    assert!(baseline["markdown_report_path"].is_null());
+    assert!(baseline["summary"]["baseline"].is_null());
+    assert!(stage(&baseline, "compile")["diagnostics"][0]["baseline_status"].is_null());
+
+    let mut verify = Command::cargo_bin("cppgauntlet").unwrap();
+    verify
+        .current_dir(temp.path())
+        .args([
+            "check",
+            "warning.cpp",
+            "--sanitizers",
+            "none",
+            "--baseline",
+            "baseline.json",
+            "--fail-on-new-diagnostics",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("policy: passed"));
+}
+
+#[test]
+fn baseline_update_supports_json_and_markdown_output() {
+    if !clang_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "hello.cpp");
+
+    let mut check = Command::cargo_bin("cppgauntlet").unwrap();
+    check
+        .current_dir(temp.path())
+        .args([
+            "check",
+            "hello.cpp",
+            "--sanitizers",
+            "none",
+            "--report",
+            "current.json",
+        ])
+        .assert()
+        .success();
+
+    let mut json = Command::cargo_bin("cppgauntlet").unwrap();
+    let assert = json
+        .current_dir(temp.path())
+        .args([
+            "--format",
+            "json",
+            "baseline",
+            "update",
+            "--report",
+            "current.json",
+            "--output",
+            "baseline-json.json",
+        ])
+        .assert()
+        .success();
+    let stdout = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
+    let value: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(value["schema_version"], 1);
+    assert_eq!(value["output"], "baseline-json.json");
+
+    let mut markdown = Command::cargo_bin("cppgauntlet").unwrap();
+    markdown
+        .current_dir(temp.path())
+        .args([
+            "--format",
+            "markdown",
+            "baseline",
+            "update",
+            "--report",
+            "current.json",
+            "--output",
+            "baseline-md.json",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("# CppGauntlet Baseline"))
+        .stdout(predicate::str::contains("| Status | updated |"));
+}
+
+#[test]
+fn baseline_update_rejects_invalid_report() {
+    let temp = tempdir().unwrap();
+    fs::write(temp.path().join("broken.json"), "not json").unwrap();
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args([
+            "baseline",
+            "update",
+            "--report",
+            "broken.json",
+            "--output",
+            "baseline.json",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("failed to parse report"));
+}
+
+#[test]
 fn check_fail_on_new_diagnostics_requires_baseline() {
     if !clang_available() {
         return;

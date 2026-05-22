@@ -46,6 +46,7 @@ cargo run -- check ./project --test-command "make test"
 cargo run -- check main.cpp --max-warnings 0
 cargo run -- check main.cpp --coverage --min-line-coverage 80
 cargo run -- check main.cpp --baseline .cppgauntlet/baseline.json --fail-on-new-diagnostics
+cargo run -- baseline update --report .cppgauntlet/cppgauntlet-report.json --output .cppgauntlet/baseline.json
 cargo run -- --format markdown check main.cpp
 cargo run -- check main.cpp --markdown-report .cppgauntlet/cppgauntlet-report.md
 cargo run -- init
@@ -148,7 +149,7 @@ policy:
 
 ## Project Status
 
-CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, custom test commands, optional `clang-tidy` analysis, single-file and CMake/CTest LLVM coverage, diagnostic baselines, CI policy gates, environment diagnostics, JSON reports, and Markdown reports.
+CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, custom test commands, optional `clang-tidy` analysis, single-file and CMake/CTest LLVM coverage, diagnostic baselines and baseline updates, CI policy gates, environment diagnostics, JSON reports, and Markdown reports.
 
 ## License
 

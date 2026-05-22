@@ -30,11 +30,37 @@ pub enum Commands {
     /// Compile and run checks for a single C++ source file.
     Check(CheckArgs),
 
+    /// Manage diagnostic baseline reports.
+    Baseline(BaselineArgs),
+
     /// Inspect external tools needed by CppGauntlet workflows.
     Doctor(DoctorArgs),
 
     /// Write a starter cppgauntlet.yaml configuration file.
     Init(InitArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct BaselineArgs {
+    #[command(subcommand)]
+    pub command: BaselineCommands,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum BaselineCommands {
+    /// Export a check report as a diagnostic baseline.
+    Update(BaselineUpdateArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct BaselineUpdateArgs {
+    /// CppGauntlet JSON report to export as a baseline.
+    #[arg(long, default_value = ".cppgauntlet/cppgauntlet-report.json")]
+    pub report: PathBuf,
+
+    /// Baseline JSON report path to write.
+    #[arg(long, default_value = ".cppgauntlet/baseline.json")]
+    pub output: PathBuf,
 }
 
 #[derive(Debug, Args)]
