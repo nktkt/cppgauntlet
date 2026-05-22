@@ -1371,6 +1371,68 @@ fn check_compile_commands_can_run_clang_tidy() {
 }
 
 #[test]
+#[cfg(unix)]
+fn check_compile_commands_can_collect_coverage() {
+    if !clang_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    write_project_source(temp.path(), "src/good.cpp", "int good() { return 1; }\n");
+    write_compile_commands(
+        temp.path(),
+        &[serde_json::json!({
+            "directory": temp.path(),
+            "file": "src/good.cpp",
+            "arguments": ["clang++", "-std=c++20", "-Wall", "-Wextra", "-Wpedantic", "-c", "src/good.cpp"]
+        })],
+    );
+    let llvm_profdata = make_fake_profdata(temp.path(), "compdb-coverage-llvm-profdata");
+    let llvm_cov = make_fake_llvm_cov(temp.path(), "compdb-coverage-llvm-cov");
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args([
+            "check",
+            ".",
+            "--coverage",
+            "--test-command",
+            r#"test -f src/good.cpp; if [ -n "$LLVM_PROFILE_FILE" ]; then : > "$LLVM_PROFILE_FILE"; fi"#,
+            "--llvm-profdata-bin",
+            llvm_profdata.to_str().unwrap(),
+            "--llvm-cov-bin",
+            llvm_cov.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("coverage_test_command"))
+        .stdout(predicate::str::contains("Line Coverage: 100.00%"));
+
+    let value = read_report(temp.path());
+    assert_eq!(value["status"], "passed");
+    let coverage_compile = stage_with_prefix(&value, "coverage_compile:");
+    assert_eq!(coverage_compile["status"], "passed");
+    assert!(coverage_compile["command"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|arg| arg == "-fprofile-instr-generate"));
+    assert_eq!(stage(&value, "coverage_test_command")["status"], "passed");
+    assert_eq!(stage(&value, "coverage_merge")["status"], "passed");
+    assert_eq!(stage(&value, "coverage_report")["status"], "passed");
+    assert_eq!(value["summary"]["coverage"]["lines"]["percent"], 100.0);
+    assert!(stage(&value, "coverage_test_command")["command"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|arg| arg.as_str().unwrap().starts_with("LLVM_PROFILE_FILE=")));
+    assert!(temp
+        .path()
+        .join(".cppgauntlet/coverage/compilation-database/coverage-summary.json")
+        .exists());
+}
+
+#[test]
 fn check_directory_reports_compile_database_failure() {
     if !clang_available() {
         return;
@@ -1634,7 +1696,11 @@ fn check_ctest_requires_cmake_project() {
 }
 
 #[test]
-fn check_coverage_requires_source_or_cmake_target() {
+fn check_compile_commands_coverage_requires_test_command() {
+    if !clang_available() {
+        return;
+    }
+
     let temp = tempdir().unwrap();
     write_project_source(temp.path(), "src/good.cpp", "int good() { return 1; }\n");
     write_compile_commands(
@@ -1651,9 +1717,14 @@ fn check_coverage_requires_source_or_cmake_target() {
         .args(["check", ".", "--coverage"])
         .assert()
         .failure()
-        .stderr(predicate::str::contains(
-            "--coverage is currently only supported when checking a single C++ source file or a CMake project",
-        ));
+        .stdout(predicate::str::contains("coverage_test_command"));
+
+    let value = read_report(temp.path());
+    assert_eq!(value["status"], "failed");
+    assert!(stage(&value, "coverage_test_command")["stderr"]
+        .as_str()
+        .unwrap()
+        .contains("requires --test-command"));
 }
 
 #[test]

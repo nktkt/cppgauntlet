@@ -193,7 +193,7 @@ Exit criteria:
 
 ## Near-Term Priorities
 
-1. Extend coverage to raw `compile_commands.json` workflows.
+1. Add coverage source filtering and object discovery controls for large projects.
 2. Expand policy gates to analyzer findings and changed-line coverage.
 3. Add baseline pruning and changed-diagnostic views for CI artifact workflows.
 4. Add SARIF fingerprints and richer source locations.

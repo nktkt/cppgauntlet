@@ -21,6 +21,14 @@ cppgauntlet check ./build --clang-tidy
 cppgauntlet check ./compile_commands.json --clang-tidy --clang-tidy-checks "bugprone-*,modernize-*"
 ```
 
+When `--coverage` is enabled, CppGauntlet replays each database entry with LLVM coverage flags and writes coverage objects under `.cppgauntlet/coverage/compilation-database/objects`. Raw compilation databases do not define a test runner, so coverage requires `--test-command` or `test.command` to run binaries built with matching coverage instrumentation:
+
+```bash
+cppgauntlet check ./compile_commands.json --coverage --test-command "./scripts/test.sh"
+```
+
+The coverage test command runs with `LLVM_PROFILE_FILE` set, then CppGauntlet merges the produced `.profraw` files and stores the parsed summary in the JSON report. See [COVERAGE.md](COVERAGE.md) for details.
+
 Runtime execution and sanitizer execution are still single-file workflows. Project-level runtime and sanitizer orchestration will be added after build-system detection becomes more complete.
 
 For CMake projects, see [CMAKE.md](CMAKE.md).

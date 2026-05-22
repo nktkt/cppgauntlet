@@ -129,7 +129,7 @@ pub struct CheckArgs {
     #[arg(long)]
     pub clang_tidy_checks: Option<String>,
 
-    /// Collect source-based coverage for single-file and CMake checks.
+    /// Collect source-based coverage for source, compile database, and CMake checks.
     #[arg(long)]
     pub coverage: bool,
 

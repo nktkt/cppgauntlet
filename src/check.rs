@@ -49,9 +49,6 @@ pub fn run(args: CheckArgs) -> Result<Report, AppError> {
         CheckTarget::CompilationDatabase(_) if args.ctest => {
             Err(AppError::CtestRequiresCMakeProject)
         }
-        CheckTarget::CompilationDatabase(_) if args.coverage => {
-            Err(AppError::CoverageRequiresSupportedTarget)
-        }
         CheckTarget::CompilationDatabase(database) => run_compilation_database(args, database),
         CheckTarget::CMakeProject(project_dir) => run_cmake_project(args, project_dir),
     }
@@ -204,17 +201,31 @@ fn run_compilation_database_with_stages(
     let timeout = Duration::from_secs(args.timeout_seconds);
     append_compilation_database_compile_stages(&mut stages, &database, timeout)?;
     append_clang_tidy_stages(&mut stages, &database, &args, timeout);
-    let test_dir = database.path.parent();
-    append_test_command_stage(&mut stages, &args, test_dir, timeout);
+    if !args.coverage {
+        let test_dir = database.path.parent();
+        append_test_command_stage(&mut stages, &args, test_dir, timeout);
+    }
+    let coverage = if args.coverage {
+        append_compilation_database_coverage_stages(
+            &mut stages,
+            &args,
+            &database,
+            &artifact_root,
+            timeout,
+        )?
+    } else {
+        None
+    };
     let baseline = apply_baseline(&mut stages, &args);
-    append_policy_stage(&mut stages, &args, None, baseline.as_ref());
+    append_policy_stage(&mut stages, &args, coverage.as_ref(), baseline.as_ref());
 
-    build_and_write_report(
+    build_and_write_report_with_coverage(
         database.path,
         "from compilation database".to_string(),
         "from compilation database".to_string(),
         stages,
         report_paths,
+        coverage,
         baseline,
     )
 }
@@ -910,6 +921,63 @@ fn compilation_database_compile_stage(
     ))
 }
 
+fn compilation_database_coverage_compile_stage(
+    unit: &CompilationUnit,
+    output: &Path,
+    timeout: Duration,
+) -> Result<StageReport, AppError> {
+    let Some((program, args)) = unit.arguments.split_first() else {
+        return Err(AppError::InvalidCompilationCommand(unit.file.clone()));
+    };
+
+    let source = source_path(unit);
+    let result = run_command(
+        CommandSpec::new(program)
+            .args(coverage_compilation_args(args, output))
+            .current_dir(unit.directory.clone()),
+        timeout,
+    )?;
+
+    Ok(stage_from_result(
+        format!("coverage_compile:{}", source.display()),
+        result,
+        Some(output),
+    ))
+}
+
+fn coverage_compilation_args(args: &[String], output: &Path) -> Vec<String> {
+    let mut rewritten = Vec::new();
+    let mut saw_output = false;
+    let mut iter = args.iter();
+
+    while let Some(arg) = iter.next() {
+        if arg == "-fsyntax-only" {
+            continue;
+        }
+
+        if arg == "-o" {
+            rewritten.push("-o".to_string());
+            rewritten.push(output.display().to_string());
+            saw_output = true;
+            let _ = iter.next();
+        } else if arg.starts_with("-o") && arg.len() > 2 {
+            rewritten.push("-o".to_string());
+            rewritten.push(output.display().to_string());
+            saw_output = true;
+        } else {
+            rewritten.push(arg.clone());
+        }
+    }
+
+    rewritten.extend(coverage_flags());
+    if !saw_output {
+        rewritten.push("-o".to_string());
+        rewritten.push(output.display().to_string());
+    }
+
+    rewritten
+}
+
 fn clang_tidy_source_stage(
     clang_tidy_bin: &str,
     checks: Option<&str>,
@@ -1046,9 +1114,128 @@ fn append_coverage_stages(
     Ok(coverage)
 }
 
+fn append_compilation_database_coverage_stages(
+    stages: &mut Vec<StageReport>,
+    args: &ResolvedCheckArgs,
+    database: &CompilationDatabase,
+    artifact_root: &Path,
+    timeout: Duration,
+) -> Result<Option<CoverageSummary>, AppError> {
+    let coverage_dir = artifact_root.join("coverage").join("compilation-database");
+    let objects_dir = coverage_dir.join("objects");
+    create_dir(&objects_dir)?;
+    let coverage_dir = coverage_dir.canonicalize().unwrap_or(coverage_dir);
+    let objects_dir = objects_dir.canonicalize().unwrap_or(objects_dir);
+
+    if stages
+        .iter()
+        .any(|stage| stage.status == StageStatus::Failed)
+    {
+        append_skipped_compilation_database_coverage_stages(stages, database);
+        return Ok(None);
+    }
+
+    let mut objects = Vec::new();
+    for (index, unit) in database.entries.iter().enumerate() {
+        let source = source_path(unit);
+        let object = objects_dir.join(format!("{:04}-{}.o", index + 1, artifact_stem(&source)));
+        let coverage_compile = compilation_database_coverage_compile_stage(unit, &object, timeout)?;
+        let coverage_compile_ok = coverage_compile.status == StageStatus::Passed;
+        stages.push(coverage_compile);
+        if coverage_compile_ok {
+            objects.push(object);
+        }
+    }
+
+    if objects.len() != database.entries.len() {
+        stages.push(StageReport::skipped("coverage_test_command"));
+        stages.push(StageReport::skipped("coverage_merge"));
+        stages.push(StageReport::skipped("coverage_report"));
+        return Ok(None);
+    }
+
+    let Some(test_command) = args.test_command.as_deref() else {
+        stages.push(failed_stage(
+            "coverage_test_command",
+            Vec::new(),
+            "raw compile_commands.json coverage requires --test-command to run coverage-instrumented tests",
+            Some(&coverage_dir),
+        ));
+        stages.push(StageReport::skipped("coverage_merge"));
+        stages.push(StageReport::skipped("coverage_report"));
+        return Ok(None);
+    };
+
+    let profraw_pattern = coverage_dir.join("compdb-%p.profraw");
+    let database_dir = database.path.parent();
+    let coverage_test_command =
+        coverage_test_command_stage(test_command, database_dir, &profraw_pattern, timeout);
+    let coverage_test_command_ok = coverage_test_command.status == StageStatus::Passed;
+    stages.push(coverage_test_command);
+    if !coverage_test_command_ok {
+        stages.push(StageReport::skipped("coverage_merge"));
+        stages.push(StageReport::skipped("coverage_report"));
+        return Ok(None);
+    }
+
+    let profraws = collect_files_with_extension(&coverage_dir, "profraw");
+    let profdata = coverage_dir.join("compilation-database.profdata");
+    if profraws.is_empty() {
+        stages.push(missing_coverage_input_stage(
+            "coverage_merge",
+            &args.llvm_profdata_bin,
+            &coverage_dir,
+            &profdata,
+            "no coverage profile files were produced by the test command",
+        ));
+        stages.push(StageReport::skipped("coverage_report"));
+        return Ok(None);
+    }
+
+    let coverage_merge = coverage_merge_stage(
+        "coverage_merge",
+        &args.llvm_profdata_bin,
+        &profraws,
+        &profdata,
+        timeout,
+    );
+    let coverage_merge_ok = coverage_merge.status == StageStatus::Passed;
+    stages.push(coverage_merge);
+    if !coverage_merge_ok {
+        stages.push(StageReport::skipped("coverage_report"));
+        return Ok(None);
+    }
+
+    let summary_path = coverage_dir.join("coverage-summary.json");
+    let sources = database.entries.iter().map(source_path).collect::<Vec<_>>();
+    let (coverage_report, coverage) = coverage_report_stage(
+        &args.llvm_cov_bin,
+        &objects,
+        &profdata,
+        &sources,
+        &summary_path,
+        timeout,
+    )?;
+    stages.push(coverage_report);
+
+    Ok(coverage)
+}
+
 fn append_skipped_coverage_stages(stages: &mut Vec<StageReport>) {
     stages.push(StageReport::skipped("coverage_compile"));
     stages.push(StageReport::skipped("coverage_run"));
+    stages.push(StageReport::skipped("coverage_merge"));
+    stages.push(StageReport::skipped("coverage_report"));
+}
+
+fn append_skipped_compilation_database_coverage_stages(
+    stages: &mut Vec<StageReport>,
+    database: &CompilationDatabase,
+) {
+    stages.extend(database.entries.iter().map(|unit| {
+        StageReport::skipped(format!("coverage_compile:{}", source_path(unit).display()))
+    }));
+    stages.push(StageReport::skipped("coverage_test_command"));
     stages.push(StageReport::skipped("coverage_merge"));
     stages.push(StageReport::skipped("coverage_report"));
 }
@@ -1168,6 +1355,28 @@ fn coverage_run_stage(executable: &Path, profraw: &Path, timeout: Duration) -> S
     let command = spec.command_line();
     let result = run_command(spec, timeout);
     stage_from_command_result("coverage_run", command, result, Some(profraw))
+}
+
+fn coverage_test_command_stage(
+    command: &str,
+    current_dir: Option<&Path>,
+    profraw_pattern: &Path,
+    timeout: Duration,
+) -> StageReport {
+    let mut spec =
+        shell_command_spec(command).env("LLVM_PROFILE_FILE", profraw_pattern.display().to_string());
+    if let Some(current_dir) = current_dir {
+        spec = spec.current_dir(current_dir.to_path_buf());
+    }
+
+    let command_line = spec.command_line();
+    let result = run_command(spec, timeout);
+    stage_from_command_result(
+        "coverage_test_command",
+        command_line,
+        result,
+        Some(profraw_pattern),
+    )
 }
 
 fn coverage_merge_stage(

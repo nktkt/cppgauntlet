@@ -89,10 +89,12 @@ Current stage names:
 - `compile`
 - `compile:<source path>`
 - `coverage_compile`
+- `coverage_compile:<source path>`
 - `coverage_cmake_configure`
 - `coverage_cmake_build`
 - `coverage_ctest`
 - `coverage_run`
+- `coverage_test_command`
 - `coverage_merge`
 - `coverage_report`
 - `ctest`
@@ -102,7 +104,7 @@ Current stage names:
 - `sanitize_run`
 - `test_command`
 
-`compile:<source path>` and `clang_tidy:<source path>` are used for project checks created from `compile_commands.json`.
+`compile:<source path>`, `clang_tidy:<source path>`, and `coverage_compile:<source path>` are used for project checks created from `compile_commands.json`.
 
 ## Diagnostics
 

@@ -41,6 +41,7 @@ cargo run -- check ./cmake-project
 cargo run -- check ./cmake-project --ctest
 cargo run -- check main.cpp --clang-tidy
 cargo run -- check main.cpp --coverage
+cargo run -- check ./project/compile_commands.json --coverage --test-command "./scripts/test.sh"
 cargo run -- check ./cmake-project --coverage
 cargo run -- check ./project --test-command "make test"
 cargo run -- check main.cpp --max-warnings 0
@@ -100,8 +101,8 @@ The first version will focus on a small, useful workflow:
 
 ## Future Scope
 
-- `compile_commands.json` coverage workflows.
 - SARIF fingerprints and richer source locations.
+- Coverage source filtering for large projects.
 - libFuzzer workflows.
 - CI-friendly exit codes.
 - Quality scoring for trend tracking.
@@ -156,7 +157,7 @@ policy:
 
 ## Project Status
 
-CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, custom test commands, optional `clang-tidy` analysis, single-file and CMake/CTest LLVM coverage, diagnostic baselines and baseline updates, CI policy gates, environment diagnostics, JSON reports, Markdown reports, HTML reports, and SARIF output.
+CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, custom test commands, optional `clang-tidy` analysis, single-file, compilation database, and CMake/CTest LLVM coverage, diagnostic baselines and baseline updates, CI policy gates, environment diagnostics, JSON reports, Markdown reports, HTML reports, SARIF output, and GitHub Code Scanning examples.
 
 ## License
 

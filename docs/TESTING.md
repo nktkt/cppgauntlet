@@ -33,6 +33,8 @@ cppgauntlet check main.cpp --test-command "test -f expected-output.txt"
 
 The custom command runs after compile and analyzer stages have passed. For source-file checks it runs from the source file directory. For `compile_commands.json` checks it runs from the compilation database directory. For CMake projects it runs from the project directory.
 
+When coverage is enabled for a raw `compile_commands.json` target, the command runs as `coverage_test_command` with `LLVM_PROFILE_FILE` set so profile data can be collected.
+
 The stage name is:
 
 ```text

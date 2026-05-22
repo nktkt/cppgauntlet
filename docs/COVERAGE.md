@@ -1,13 +1,12 @@
 # Coverage
 
-CppGauntlet can collect LLVM source-based coverage for single-file checks and CMake projects.
+CppGauntlet can collect LLVM source-based coverage for single-file checks, raw `compile_commands.json` workflows, and CMake projects.
 
 ```bash
 cppgauntlet check main.cpp --coverage
+cppgauntlet check ./compile_commands.json --coverage --test-command "./scripts/test.sh"
 cppgauntlet check ./my-cmake-project --coverage
 ```
-
-Current project coverage support requires CMake and CTest. Coverage for raw `compile_commands.json` workflows will build on the same report model later.
 
 ## Single-File Pipeline
 
@@ -34,6 +33,33 @@ The raw LLVM coverage JSON is written to:
 ```
 
 The parsed line, function, and region coverage totals are stored in `summary.coverage` in the main JSON report.
+
+## Compilation Database Pipeline
+
+For raw `compile_commands.json` targets, CppGauntlet replays each compilation database entry with Clang source-based coverage flags and writes the coverage objects under:
+
+```text
+.cppgauntlet/coverage/compilation-database/objects
+```
+
+Because `compile_commands.json` only describes translation-unit compilation, coverage mode requires `--test-command` or `test.command` to run binaries built with matching coverage instrumentation. The coverage test command runs with `LLVM_PROFILE_FILE` set to:
+
+```text
+.cppgauntlet/coverage/compilation-database/compdb-%p.profraw
+```
+
+It then runs:
+
+- `coverage_compile:<source path>` for each compilation database entry
+- `coverage_test_command`
+- `coverage_merge`
+- `coverage_report`
+
+The raw LLVM coverage JSON is written to:
+
+```text
+.cppgauntlet/coverage/compilation-database/coverage-summary.json
+```
 
 ## CMake Pipeline
 
