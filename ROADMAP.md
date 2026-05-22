@@ -193,9 +193,9 @@ Exit criteria:
 
 ## Near-Term Priorities
 
-1. Add changed-line coverage policy gates.
-2. Add baseline pruning and changed-diagnostic views for CI artifact workflows.
-3. Add SARIF fingerprints and richer source locations.
+1. Add baseline pruning and changed-diagnostic views for CI artifact workflows.
+2. Add SARIF fingerprints and richer source locations.
+3. Add diff discovery for changed-line coverage inputs.
 4. Add libFuzzer smoke workflows.
 5. Create contribution and issue templates before the first public release milestone.
 6. Add release packaging metadata and installation docs.

@@ -82,6 +82,8 @@ impl ProjectConfig {
                 max_warnings: None,
                 max_analyzer_findings: None,
                 min_line_coverage: None,
+                min_changed_line_coverage: None,
+                changed_lines: Vec::new(),
                 fail_on_new_diagnostics: Some(false),
             }),
         }
@@ -205,6 +207,19 @@ impl ProjectConfig {
             .and_then(|policy| policy.min_line_coverage)
     }
 
+    pub fn min_changed_line_coverage(&self) -> Option<f64> {
+        self.policy
+            .as_ref()
+            .and_then(|policy| policy.min_changed_line_coverage)
+    }
+
+    pub fn changed_lines(&self) -> Vec<String> {
+        self.policy
+            .as_ref()
+            .map(|policy| policy.changed_lines.clone())
+            .unwrap_or_default()
+    }
+
     pub fn fail_on_new_diagnostics(&self) -> Option<bool> {
         self.policy
             .as_ref()
@@ -295,6 +310,12 @@ pub struct PolicyConfig {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub min_line_coverage: Option<f64>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_changed_line_coverage: Option<f64>,
+
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub changed_lines: Vec<String>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fail_on_new_diagnostics: Option<bool>,

@@ -149,6 +149,10 @@ pub struct CheckArgs {
     #[arg(long = "coverage-object")]
     pub coverage_objects: Vec<PathBuf>,
 
+    /// Changed source line in <path>:<line> form. Repeat for changed-line coverage.
+    #[arg(long = "changed-line")]
+    pub changed_lines: Vec<String>,
+
     /// Previous CppGauntlet JSON report to use as a diagnostic baseline.
     #[arg(long)]
     pub baseline: Option<PathBuf>,
@@ -164,6 +168,10 @@ pub struct CheckArgs {
     /// Fail the report when line coverage is below this percentage.
     #[arg(long, value_parser = parse_percentage)]
     pub min_line_coverage: Option<f64>,
+
+    /// Fail the report when changed-line coverage is below this percentage.
+    #[arg(long, value_parser = parse_percentage)]
+    pub min_changed_line_coverage: Option<f64>,
 
     /// Fail the report when diagnostics are not present in the baseline report.
     #[arg(long)]

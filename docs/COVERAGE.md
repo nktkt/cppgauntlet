@@ -112,12 +112,15 @@ cppgauntlet check main.cpp \
 - `--coverage`: enable coverage collection
 - `--coverage-source`: pass a source path to `llvm-cov export`; repeat to limit coverage output to selected files
 - `--coverage-object`: pass an object or executable to `llvm-cov export`; repeat to override automatic object discovery
+- `--changed-line`: pass a changed source line in `<path>:<line>` form; repeat to calculate changed-line coverage
 - `--llvm-cov-bin`: override the `llvm-cov` executable path
 - `--llvm-profdata-bin`: override the `llvm-profdata` executable path
 
-Passing either tool override, source filter, or object override also enables coverage.
+Passing either tool override, source filter, object override, or changed-line input also enables coverage.
 
 When no sources are configured, CppGauntlet uses the checked source file for single-file checks, all compilation database entries for raw `compile_commands.json` checks, and no explicit source filter for CMake checks. When no objects are configured, CppGauntlet uses the generated single-file executable, generated compilation database coverage objects, or discovered CMake coverage objects.
+
+When changed lines are supplied, CppGauntlet reads full `llvm-cov export` file data instead of `--summary-only` output and stores the result in `summary.coverage.changed_lines`. Non-coverable changed lines that are not present in LLVM coverage file data are ignored.
 
 ## Configuration
 

@@ -41,7 +41,8 @@ Report and stage status values use snake case:
   "coverage": {
     "lines": { "count": 10, "covered": 9, "percent": 90.0 },
     "functions": { "count": 2, "covered": 2, "percent": 100.0 },
-    "regions": { "count": 6, "covered": 5, "percent": 83.33 }
+    "regions": { "count": 6, "covered": 5, "percent": 83.33 },
+    "changed_lines": { "count": 2, "covered": 1, "percent": 50.0 }
   },
   "baseline": {
     "path": ".cppgauntlet/baseline.json",
@@ -56,7 +57,7 @@ Report and stage status values use snake case:
 
 Warnings do not fail a report unless the `policy.max_warnings` gate is configured. Compile failures, runtime failures, sanitizer failures, policy failures, and timeouts do fail a report.
 `clang-tidy` warnings do not fail a report unless the `clang-tidy` process itself exits non-zero.
-The `coverage` object is omitted when coverage is not enabled or when coverage collection fails before a summary can be parsed. If all earlier stages pass, a configured `policy.min_line_coverage` gate fails when this summary is unavailable.
+The `coverage` object is omitted when coverage is not enabled or when coverage collection fails before a summary can be parsed. If all earlier stages pass, a configured `policy.min_line_coverage` gate fails when this summary is unavailable. The optional `coverage.changed_lines` metric is present when changed lines were supplied and LLVM coverage file data was available.
 The `baseline` object is omitted when no baseline report is configured.
 The top-level `markdown_report_path`, `html_report_path`, and `sarif_report_path` fields are omitted when those artifacts are not configured.
 

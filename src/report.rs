@@ -105,6 +105,12 @@ impl Report {
                 format!("| Function coverage | {:.2}% |", coverage.functions.percent),
                 format!("| Region coverage | {:.2}% |", coverage.regions.percent),
             ]);
+            if let Some(changed_lines) = &coverage.changed_lines {
+                lines.push(format!(
+                    "| Changed-line coverage | {:.2}% |",
+                    changed_lines.percent
+                ));
+            }
         }
 
         if let Some(baseline) = &self.summary.baseline {
@@ -232,6 +238,12 @@ impl Report {
                     &format!("{:.2}%", coverage.regions.percent),
                 ),
             ]);
+            if let Some(changed_lines) = &coverage.changed_lines {
+                summary_rows.push(html_table_row(
+                    "Changed-line coverage",
+                    &format!("{:.2}%", changed_lines.percent),
+                ));
+            }
         }
         if let Some(baseline) = &self.summary.baseline {
             summary_rows.extend([
@@ -478,6 +490,8 @@ pub struct CoverageSummary {
     pub lines: CoverageMetric,
     pub functions: CoverageMetric,
     pub regions: CoverageMetric,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub changed_lines: Option<CoverageMetric>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -675,11 +689,17 @@ pub fn stage_from_result(
 }
 
 fn coverage_line(summary: &Summary) -> String {
-    summary
-        .coverage
-        .as_ref()
-        .map(|coverage| format!("Line Coverage: {:.2}%", coverage.lines.percent))
-        .unwrap_or_else(|| "Line Coverage: n/a".to_string())
+    let Some(coverage) = &summary.coverage else {
+        return "Line Coverage: n/a".to_string();
+    };
+
+    match &coverage.changed_lines {
+        Some(changed_lines) => format!(
+            "Line Coverage: {:.2}% | Changed-Line Coverage: {:.2}%",
+            coverage.lines.percent, changed_lines.percent
+        ),
+        None => format!("Line Coverage: {:.2}%", coverage.lines.percent),
+    }
 }
 
 fn baseline_line(summary: &Summary) -> String {

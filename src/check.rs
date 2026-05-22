@@ -1,3 +1,4 @@
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -607,6 +608,7 @@ fn append_policy_stage(
     if args.max_warnings.is_none()
         && args.max_analyzer_findings.is_none()
         && args.min_line_coverage.is_none()
+        && args.min_changed_line_coverage.is_none()
         && !args.fail_on_new_diagnostics
     {
         return;
@@ -678,6 +680,28 @@ fn policy_stage(
         }
     }
 
+    if let Some(min_changed_line_coverage) = args.min_changed_line_coverage {
+        match coverage.and_then(|coverage| coverage.changed_lines.as_ref()) {
+            Some(changed_lines) if changed_lines.percent >= min_changed_line_coverage => {
+                passes.push(format!(
+                    "changed-line coverage {:.2}% >= {:.2}%",
+                    changed_lines.percent, min_changed_line_coverage
+                ));
+            }
+            Some(changed_lines) => {
+                failures.push(format!(
+                    "changed-line coverage {:.2}% is below configured minimum {:.2}%",
+                    changed_lines.percent, min_changed_line_coverage
+                ));
+            }
+            None => {
+                failures.push(format!(
+                    "changed-line coverage summary is unavailable; configured minimum is {min_changed_line_coverage:.2}%"
+                ));
+            }
+        }
+    }
+
     if args.fail_on_new_diagnostics {
         match baseline {
             Some(baseline) if baseline.new_diagnostic_occurrences == 0 => {
@@ -742,6 +766,36 @@ fn validate_coverage_threshold(value: Option<f64>) -> Result<Option<f64>, AppErr
     }
 }
 
+fn parse_changed_lines(values: Vec<String>) -> Result<Vec<ChangedLine>, AppError> {
+    let mut changed_lines = Vec::new();
+    let mut seen = HashSet::new();
+
+    for value in values {
+        let (path, line) = value
+            .rsplit_once(':')
+            .ok_or_else(|| AppError::InvalidChangedLine(value.clone()))?;
+        if path.trim().is_empty() {
+            return Err(AppError::InvalidChangedLine(value));
+        }
+
+        let line = line
+            .parse::<u64>()
+            .ok()
+            .filter(|line| *line > 0)
+            .ok_or_else(|| AppError::InvalidChangedLine(value.clone()))?;
+        let changed_line = ChangedLine {
+            path: PathBuf::from(path),
+            line,
+        };
+
+        if seen.insert(changed_line.clone()) {
+            changed_lines.push(changed_line);
+        }
+    }
+
+    Ok(changed_lines)
+}
+
 enum CheckTarget {
     SourceFile(PathBuf),
     CompilationDatabase(CompilationDatabase),
@@ -798,11 +852,19 @@ struct ResolvedCheckArgs {
     llvm_profdata_bin: String,
     coverage_sources: Vec<PathBuf>,
     coverage_objects: Vec<PathBuf>,
+    changed_lines: Vec<ChangedLine>,
     baseline: Option<Baseline>,
     max_warnings: Option<usize>,
     max_analyzer_findings: Option<usize>,
     min_line_coverage: Option<f64>,
+    min_changed_line_coverage: Option<f64>,
     fail_on_new_diagnostics: bool,
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+struct ChangedLine {
+    path: PathBuf,
+    line: u64,
 }
 
 impl ResolvedCheckArgs {
@@ -828,6 +890,8 @@ impl ResolvedCheckArgs {
         let config_max_warnings = config.max_warnings();
         let config_max_analyzer_findings = config.max_analyzer_findings();
         let config_min_line_coverage = config.min_line_coverage();
+        let config_min_changed_line_coverage = config.min_changed_line_coverage();
+        let config_changed_lines = config.changed_lines();
         let config_fail_on_new_diagnostics = config.fail_on_new_diagnostics();
         let max_analyzer_findings = args.max_analyzer_findings.or(config_max_analyzer_findings);
         let cli_requested_clang_tidy = args.clang_tidy
@@ -844,11 +908,18 @@ impl ResolvedCheckArgs {
         } else {
             args.coverage_objects.clone()
         };
+        let changed_line_values = if args.changed_lines.is_empty() {
+            config_changed_lines
+        } else {
+            args.changed_lines.clone()
+        };
+        let changed_lines = parse_changed_lines(changed_line_values)?;
         let cli_requested_coverage = args.coverage
             || args.llvm_cov_bin.is_some()
             || args.llvm_profdata_bin.is_some()
             || !coverage_sources.is_empty()
-            || !coverage_objects.is_empty();
+            || !coverage_objects.is_empty()
+            || !changed_lines.is_empty();
         let baseline_path = args.baseline.or(config_baseline_path);
         let fail_on_new_diagnostics =
             args.fail_on_new_diagnostics || config_fail_on_new_diagnostics.unwrap_or(false);
@@ -858,6 +929,10 @@ impl ResolvedCheckArgs {
         let baseline = baseline_path.as_deref().map(Baseline::load).transpose()?;
         let min_line_coverage =
             validate_coverage_threshold(args.min_line_coverage.or(config_min_line_coverage))?;
+        let min_changed_line_coverage = validate_coverage_threshold(
+            args.min_changed_line_coverage
+                .or(config_min_changed_line_coverage),
+        )?;
 
         Ok(Self {
             file: args.file,
@@ -904,10 +979,12 @@ impl ResolvedCheckArgs {
                 .unwrap_or_else(|| "llvm-profdata".to_string()),
             coverage_sources,
             coverage_objects,
+            changed_lines,
             baseline,
             max_warnings: args.max_warnings.or(config_max_warnings),
             max_analyzer_findings,
             min_line_coverage,
+            min_changed_line_coverage,
             fail_on_new_diagnostics,
         })
     }
@@ -1157,6 +1234,7 @@ fn append_coverage_stages(
         &selected_coverage_objects(args, vec![executable]),
         &profdata,
         &selected_coverage_sources(args, vec![source.to_path_buf()]),
+        &args.changed_lines,
         &summary_path,
         timeout,
     )?;
@@ -1264,6 +1342,7 @@ fn append_compilation_database_coverage_stages(
         &selected_coverage_objects(args, objects),
         &profdata,
         &selected_coverage_sources(args, sources),
+        &args.changed_lines,
         &summary_path,
         timeout,
     )?;
@@ -1384,6 +1463,7 @@ fn append_cmake_coverage_stages(
         &selected_coverage_objects(args, objects),
         &profdata,
         &selected_coverage_sources(args, Vec::new()),
+        &args.changed_lines,
         &summary_path,
         timeout,
     )?;
@@ -1473,6 +1553,7 @@ fn coverage_report_stage(
     objects: &[PathBuf],
     profdata: &Path,
     sources: &[PathBuf],
+    changed_lines: &[ChangedLine],
     summary_path: &Path,
     timeout: Duration,
 ) -> Result<(StageReport, Option<CoverageSummary>), AppError> {
@@ -1497,8 +1578,10 @@ fn coverage_report_stage(
         "export".to_string(),
         objects[0].display().to_string(),
         format!("-instr-profile={}", profdata.display()),
-        "--summary-only".to_string(),
     ];
+    if changed_lines.is_empty() {
+        args.push("--summary-only".to_string());
+    }
     args.extend(
         objects
             .iter()
@@ -1518,7 +1601,7 @@ fn coverage_report_stage(
         return Ok((stage, None));
     }
 
-    let coverage = match parse_coverage_summary(&stage.stdout) {
+    let coverage = match parse_coverage_summary(&stage.stdout, changed_lines) {
         Ok(coverage) => coverage,
         Err(error) => {
             stage.status = StageStatus::Failed;
@@ -1642,7 +1725,10 @@ fn is_coverage_object(path: &Path) -> bool {
     }
 }
 
-fn parse_coverage_summary(output: &str) -> Result<CoverageSummary, String> {
+fn parse_coverage_summary(
+    output: &str,
+    changed_lines: &[ChangedLine],
+) -> Result<CoverageSummary, String> {
     let value: serde_json::Value = serde_json::from_str(output)
         .map_err(|source| format!("failed to parse coverage JSON: {source}"))?;
     let totals = value
@@ -1653,7 +1739,101 @@ fn parse_coverage_summary(output: &str) -> Result<CoverageSummary, String> {
         lines: coverage_metric(totals, "lines")?,
         functions: coverage_metric(totals, "functions")?,
         regions: coverage_metric(totals, "regions")?,
+        changed_lines: changed_line_coverage_metric(&value, changed_lines)?,
     })
+}
+
+fn changed_line_coverage_metric(
+    value: &serde_json::Value,
+    changed_lines: &[ChangedLine],
+) -> Result<Option<CoverageMetric>, String> {
+    if changed_lines.is_empty() {
+        return Ok(None);
+    }
+
+    let files = value
+        .pointer("/data/0/files")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| {
+            "coverage JSON is missing data[0].files; changed-line coverage requires non-summary llvm-cov output".to_string()
+        })?;
+
+    let mut covered = 0;
+    let mut count = 0;
+
+    for changed_line in changed_lines {
+        if let Some(is_covered) = changed_line_is_covered(files, changed_line) {
+            count += 1;
+            if is_covered {
+                covered += 1;
+            }
+        }
+    }
+
+    let percent = if count == 0 {
+        100.0
+    } else {
+        (covered as f64 / count as f64) * 100.0
+    };
+
+    Ok(Some(CoverageMetric {
+        count,
+        covered,
+        percent,
+    }))
+}
+
+fn changed_line_is_covered(
+    files: &[serde_json::Value],
+    changed_line: &ChangedLine,
+) -> Option<bool> {
+    files.iter().find_map(|file| {
+        let filename = file.get("filename")?.as_str()?;
+        if !coverage_path_matches(filename, &changed_line.path) {
+            return None;
+        }
+
+        let line_counts = coverage_line_counts(file);
+        line_counts.get(&changed_line.line).map(|count| *count > 0)
+    })
+}
+
+fn coverage_line_counts(file: &serde_json::Value) -> HashMap<u64, u64> {
+    let mut counts = HashMap::new();
+    let Some(segments) = file.get("segments").and_then(serde_json::Value::as_array) else {
+        return counts;
+    };
+
+    for segment in segments {
+        let Some(values) = segment.as_array() else {
+            continue;
+        };
+        let Some(line) = values.first().and_then(serde_json::Value::as_u64) else {
+            continue;
+        };
+        let Some(count) = values.get(2).and_then(serde_json::Value::as_u64) else {
+            continue;
+        };
+        let has_count = values
+            .get(3)
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(true);
+        if has_count {
+            counts
+                .entry(line)
+                .and_modify(|current| *current = (*current).max(count))
+                .or_insert(count);
+        }
+    }
+
+    counts
+}
+
+fn coverage_path_matches(filename: &str, changed_path: &Path) -> bool {
+    let coverage_path = Path::new(filename);
+    coverage_path == changed_path
+        || coverage_path.ends_with(changed_path)
+        || changed_path.ends_with(coverage_path)
 }
 
 fn coverage_metric(totals: &serde_json::Value, key: &str) -> Result<CoverageMetric, String> {

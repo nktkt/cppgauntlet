@@ -986,6 +986,58 @@ fn check_policy_fails_when_coverage_threshold_has_no_summary() {
 }
 
 #[test]
+#[cfg(unix)]
+fn check_policy_can_fail_on_changed_line_coverage() {
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "hello.cpp");
+    let compiler = make_fake_compiler(temp.path(), "changed-line-coverage-clang++");
+    let llvm_profdata = make_fake_profdata(temp.path(), "changed-line-llvm-profdata");
+    let llvm_cov = make_fake_llvm_cov_with_changed_lines(temp.path(), "changed-line-llvm-cov");
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args([
+            "check",
+            "hello.cpp",
+            "--compiler",
+            compiler.to_str().unwrap(),
+            "--sanitizers",
+            "none",
+            "--changed-line",
+            "hello.cpp:1",
+            "--changed-line",
+            "hello.cpp:2",
+            "--min-changed-line-coverage",
+            "60",
+            "--llvm-profdata-bin",
+            llvm_profdata.to_str().unwrap(),
+            "--llvm-cov-bin",
+            llvm_cov.to_str().unwrap(),
+        ])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("policy: failed"));
+
+    let value = read_report(temp.path());
+    assert_eq!(stage(&value, "coverage_report")["status"], "passed");
+    assert_eq!(value["summary"]["coverage"]["changed_lines"]["covered"], 1);
+    assert_eq!(value["summary"]["coverage"]["changed_lines"]["count"], 2);
+    assert_eq!(
+        value["summary"]["coverage"]["changed_lines"]["percent"],
+        50.0
+    );
+    assert!(!stage(&value, "coverage_report")["command"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|arg| arg == "--summary-only"));
+    assert!(stage(&value, "policy")["stderr"]
+        .as_str()
+        .unwrap()
+        .contains("changed-line coverage 50.00% is below configured minimum 60.00%"));
+}
+
+#[test]
 fn check_baseline_marks_existing_diagnostics_without_failing() {
     if !clang_available() {
         return;
@@ -2225,6 +2277,41 @@ JSON
 "#
     );
     make_fake_script(dir, name, &body)
+}
+
+#[cfg(unix)]
+fn make_fake_llvm_cov_with_changed_lines(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
+    let body = r#"cat <<'JSON'
+{
+  "data": [
+    {
+      "files": [
+        {
+          "filename": "hello.cpp",
+          "segments": [
+            [1, 1, 1, true, true, false],
+            [2, 1, 0, true, true, false]
+          ],
+          "summary": {
+            "lines": { "count": 2, "covered": 1, "percent": 50.0 },
+            "functions": { "count": 1, "covered": 1, "percent": 100.0 },
+            "regions": { "count": 2, "covered": 1, "percent": 50.0 }
+          }
+        }
+      ],
+      "totals": {
+        "lines": { "count": 2, "covered": 1, "percent": 50.0 },
+        "functions": { "count": 1, "covered": 1, "percent": 100.0 },
+        "regions": { "count": 2, "covered": 1, "percent": 50.0 }
+      }
+    }
+  ],
+  "type": "llvm.coverage.json.export",
+  "version": "2.0.1"
+}
+JSON
+"#;
+    make_fake_script(dir, name, body)
 }
 
 #[cfg(unix)]

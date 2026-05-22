@@ -48,6 +48,7 @@ cargo run -- check ./project --test-command "make test"
 cargo run -- check main.cpp --max-warnings 0
 cargo run -- check main.cpp --max-analyzer-findings 0
 cargo run -- check main.cpp --coverage --min-line-coverage 80
+cargo run -- check main.cpp --changed-line src/main.cpp:42 --min-changed-line-coverage 90
 cargo run -- check main.cpp --baseline .cppgauntlet/baseline.json --fail-on-new-diagnostics
 cargo run -- baseline update --report .cppgauntlet/cppgauntlet-report.json --output .cppgauntlet/baseline.json
 cargo run -- --format markdown check main.cpp
@@ -104,7 +105,7 @@ The first version will focus on a small, useful workflow:
 ## Future Scope
 
 - SARIF fingerprints and richer source locations.
-- Coverage source filtering for large projects.
+- Diff discovery for changed-line coverage inputs.
 - libFuzzer workflows.
 - CI-friendly exit codes.
 - Quality scoring for trend tracking.
@@ -157,12 +158,14 @@ policy:
   max_warnings: null
   max_analyzer_findings: null
   min_line_coverage: null
+  min_changed_line_coverage: null
+  changed_lines: []
   fail_on_new_diagnostics: false
 ```
 
 ## Project Status
 
-CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, custom test commands, optional `clang-tidy` analysis, single-file, compilation database, and CMake/CTest LLVM coverage, diagnostic baselines and baseline updates, CI policy gates, environment diagnostics, JSON reports, Markdown reports, HTML reports, SARIF output, and GitHub Code Scanning examples.
+CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, custom test commands, optional `clang-tidy` analysis, single-file, compilation database, and CMake/CTest LLVM coverage, diagnostic baselines and baseline updates, CI policy gates including changed-line coverage, environment diagnostics, JSON reports, Markdown reports, HTML reports, SARIF output, and GitHub Code Scanning examples.
 
 ## License
 

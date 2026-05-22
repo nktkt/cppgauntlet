@@ -41,6 +41,9 @@ pub enum AppError {
     #[error("invalid coverage threshold {0}. Expected a value between 0 and 100")]
     InvalidCoverageThreshold(f64),
 
+    #[error("invalid changed line '{0}'. Expected <path>:<line>")]
+    InvalidChangedLine(String),
+
     #[error("--fail-on-new-diagnostics requires --baseline or baseline.path")]
     BaselineRequired,
 
