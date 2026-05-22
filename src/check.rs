@@ -36,7 +36,11 @@ impl Sanitizer {
 
 pub fn run(args: CheckArgs) -> Result<Report, AppError> {
     let args = ResolvedCheckArgs::from_cli(args)?;
-    let target = CheckTarget::resolve(&args.file)?;
+    let target = if args.coverage && args.file.is_dir() && is_cmake_project(&args.file) {
+        CheckTarget::CMakeProject(args.file.clone())
+    } else {
+        CheckTarget::resolve(&args.file)?
+    };
 
     match target {
         CheckTarget::SourceFile(_) if args.ctest => Err(AppError::CtestRequiresCMakeProject),
@@ -45,10 +49,9 @@ pub fn run(args: CheckArgs) -> Result<Report, AppError> {
             Err(AppError::CtestRequiresCMakeProject)
         }
         CheckTarget::CompilationDatabase(_) if args.coverage => {
-            Err(AppError::CoverageRequiresSourceFile)
+            Err(AppError::CoverageRequiresSupportedTarget)
         }
         CheckTarget::CompilationDatabase(database) => run_compilation_database(args, database),
-        CheckTarget::CMakeProject(_) if args.coverage => Err(AppError::CoverageRequiresSourceFile),
         CheckTarget::CMakeProject(project_dir) => run_cmake_project(args, project_dir),
     }
 }
@@ -222,11 +225,15 @@ fn run_cmake_project(args: ResolvedCheckArgs, project_dir: PathBuf) -> Result<Re
     let cmake_stage = cmake_configure_stage(&project_dir, &build_dir, timeout);
 
     if cmake_stage.status == StageStatus::Failed {
+        let mut stages = vec![cmake_stage];
+        if args.coverage {
+            append_skipped_cmake_coverage_stages(&mut stages);
+        }
         return build_and_write_report(
             project_dir,
             "from CMake".to_string(),
             "from CMake".to_string(),
-            vec![cmake_stage],
+            stages,
             report_path,
         );
     }
@@ -257,12 +264,19 @@ fn run_cmake_project(args: ResolvedCheckArgs, project_dir: PathBuf) -> Result<Re
         }
     }
 
-    build_and_write_report(
+    let coverage = if args.coverage {
+        append_cmake_coverage_stages(&mut stages, &args, &project_dir, &artifact_root, timeout)?
+    } else {
+        None
+    };
+
+    build_and_write_report_with_coverage(
         project_dir,
         "from CMake".to_string(),
         "from CMake".to_string(),
         stages,
         report_path,
+        coverage,
     )
 }
 
@@ -273,7 +287,18 @@ fn build_and_write_report(
     stages: Vec<StageReport>,
     report_path: PathBuf,
 ) -> Result<Report, AppError> {
-    let summary = summarize(&stages, None);
+    build_and_write_report_with_coverage(target_path, standard, compiler, stages, report_path, None)
+}
+
+fn build_and_write_report_with_coverage(
+    target_path: PathBuf,
+    standard: String,
+    compiler: String,
+    stages: Vec<StageReport>,
+    report_path: PathBuf,
+    coverage: Option<CoverageSummary>,
+) -> Result<Report, AppError> {
+    let summary = summarize(&stages, coverage);
     let status = if summary.failed_stages == 0 {
         ReportStatus::Passed
     } else {
@@ -302,20 +327,55 @@ fn build_and_write_report(
 }
 
 fn cmake_configure_stage(source_dir: &Path, build_dir: &Path, timeout: Duration) -> StageReport {
-    let args = vec![
+    cmake_configure_stage_with_args(
+        "cmake_configure",
+        source_dir,
+        build_dir,
+        Vec::new(),
+        timeout,
+    )
+}
+
+fn cmake_coverage_configure_stage(
+    source_dir: &Path,
+    build_dir: &Path,
+    timeout: Duration,
+) -> StageReport {
+    cmake_configure_stage_with_args(
+        "coverage_cmake_configure",
+        source_dir,
+        build_dir,
+        vec![
+            format!("-DCMAKE_CXX_FLAGS={}", coverage_flags().join(" ")),
+            "-DCMAKE_EXE_LINKER_FLAGS=-fprofile-instr-generate".to_string(),
+            "-DCMAKE_SHARED_LINKER_FLAGS=-fprofile-instr-generate".to_string(),
+        ],
+        timeout,
+    )
+}
+
+fn cmake_configure_stage_with_args(
+    name: &str,
+    source_dir: &Path,
+    build_dir: &Path,
+    extra_args: Vec<String>,
+    timeout: Duration,
+) -> StageReport {
+    let mut args = vec![
         "-S".to_string(),
         source_dir.display().to_string(),
         "-B".to_string(),
         build_dir.display().to_string(),
         "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON".to_string(),
     ];
+    args.extend(extra_args);
     let spec = CommandSpec::new("cmake").args(args);
     let command = spec.command_line();
 
     match run_command(spec, timeout) {
-        Ok(result) => stage_from_result("cmake_configure", result, Some(build_dir)),
+        Ok(result) => stage_from_result(name, result, Some(build_dir)),
         Err(error) => StageReport {
-            name: "cmake_configure".to_string(),
+            name: name.to_string(),
             status: StageStatus::Failed,
             command,
             exit_code: None,
@@ -331,23 +391,39 @@ fn cmake_configure_stage(source_dir: &Path, build_dir: &Path, timeout: Duration)
 }
 
 fn cmake_build_stage(build_dir: &Path, timeout: Duration) -> StageReport {
+    cmake_build_stage_named("cmake_build", build_dir, timeout)
+}
+
+fn cmake_build_stage_named(name: &str, build_dir: &Path, timeout: Duration) -> StageReport {
     let args = vec!["--build".to_string(), build_dir.display().to_string()];
     let spec = CommandSpec::new("cmake").args(args);
     let command = spec.command_line();
     let result = run_command(spec, timeout);
-    stage_from_command_result("cmake_build", command, result, Some(build_dir))
+    stage_from_command_result(name, command, result, Some(build_dir))
 }
 
 fn ctest_stage(build_dir: &Path, timeout: Duration) -> StageReport {
+    ctest_stage_named("ctest", build_dir, None, timeout)
+}
+
+fn ctest_stage_named(
+    name: &str,
+    build_dir: &Path,
+    profile_pattern: Option<&Path>,
+    timeout: Duration,
+) -> StageReport {
     let args = vec![
         "--test-dir".to_string(),
         build_dir.display().to_string(),
         "--output-on-failure".to_string(),
     ];
-    let spec = CommandSpec::new("ctest").args(args);
+    let mut spec = CommandSpec::new("ctest").args(args);
+    if let Some(profile_pattern) = profile_pattern {
+        spec = spec.env("LLVM_PROFILE_FILE", profile_pattern.display().to_string());
+    }
     let command = spec.command_line();
     let result = run_command(spec, timeout);
-    stage_from_command_result("ctest", command, result, Some(build_dir))
+    stage_from_command_result(name, command, result, Some(build_dir))
 }
 
 fn stage_from_command_result(
@@ -661,6 +737,7 @@ fn append_coverage_stages(
 ) -> Result<Option<CoverageSummary>, AppError> {
     let coverage_dir = artifact_root.join("coverage");
     create_dir(&coverage_dir)?;
+    let coverage_dir = coverage_dir.canonicalize().unwrap_or(coverage_dir);
 
     if stages
         .iter()
@@ -703,8 +780,13 @@ fn append_coverage_stages(
         return Ok(None);
     }
 
-    let coverage_merge =
-        coverage_merge_stage(&args.llvm_profdata_bin, &profraw, &profdata, timeout);
+    let coverage_merge = coverage_merge_stage(
+        "coverage_merge",
+        &args.llvm_profdata_bin,
+        &[profraw],
+        &profdata,
+        timeout,
+    );
     let coverage_merge_ok = coverage_merge.status == StageStatus::Passed;
     stages.push(coverage_merge);
     if !coverage_merge_ok {
@@ -714,9 +796,9 @@ fn append_coverage_stages(
 
     let (coverage_report, coverage) = coverage_report_stage(
         &args.llvm_cov_bin,
-        &executable,
+        &[executable],
         &profdata,
-        source,
+        &[source.to_path_buf()],
         &summary_path,
         timeout,
     )?;
@@ -732,6 +814,115 @@ fn append_skipped_coverage_stages(stages: &mut Vec<StageReport>) {
     stages.push(StageReport::skipped("coverage_report"));
 }
 
+fn append_cmake_coverage_stages(
+    stages: &mut Vec<StageReport>,
+    args: &ResolvedCheckArgs,
+    project_dir: &Path,
+    artifact_root: &Path,
+    timeout: Duration,
+) -> Result<Option<CoverageSummary>, AppError> {
+    let coverage_build_dir = artifact_root.join("cmake-coverage-build");
+    let coverage_dir = artifact_root.join("coverage").join("cmake");
+    create_dir(&coverage_dir)?;
+    let coverage_dir = coverage_dir.canonicalize().unwrap_or(coverage_dir);
+
+    if stages
+        .iter()
+        .any(|stage| stage.status == StageStatus::Failed)
+    {
+        append_skipped_cmake_coverage_stages(stages);
+        return Ok(None);
+    }
+
+    let coverage_configure =
+        cmake_coverage_configure_stage(project_dir, &coverage_build_dir, timeout);
+    let coverage_configure_ok = coverage_configure.status == StageStatus::Passed;
+    stages.push(coverage_configure);
+    if !coverage_configure_ok {
+        stages.push(StageReport::skipped("coverage_cmake_build"));
+        stages.push(StageReport::skipped("coverage_ctest"));
+        stages.push(StageReport::skipped("coverage_merge"));
+        stages.push(StageReport::skipped("coverage_report"));
+        return Ok(None);
+    }
+
+    let coverage_build =
+        cmake_build_stage_named("coverage_cmake_build", &coverage_build_dir, timeout);
+    let coverage_build_ok = coverage_build.status == StageStatus::Passed;
+    stages.push(coverage_build);
+    if !coverage_build_ok {
+        stages.push(StageReport::skipped("coverage_ctest"));
+        stages.push(StageReport::skipped("coverage_merge"));
+        stages.push(StageReport::skipped("coverage_report"));
+        return Ok(None);
+    }
+
+    let profraw_pattern = coverage_dir.join("cmake-%p.profraw");
+    let coverage_ctest = ctest_stage_named(
+        "coverage_ctest",
+        &coverage_build_dir,
+        Some(&profraw_pattern),
+        timeout,
+    );
+    let coverage_ctest_ok = coverage_ctest.status == StageStatus::Passed;
+    stages.push(coverage_ctest);
+    if !coverage_ctest_ok {
+        stages.push(StageReport::skipped("coverage_merge"));
+        stages.push(StageReport::skipped("coverage_report"));
+        return Ok(None);
+    }
+
+    let profraws = collect_files_with_extension(&coverage_dir, "profraw");
+    let profdata = coverage_dir.join("cmake.profdata");
+    if profraws.is_empty() {
+        stages.push(missing_coverage_input_stage(
+            "coverage_merge",
+            &args.llvm_profdata_bin,
+            &coverage_dir,
+            &profdata,
+            "no coverage profile files were produced by CTest",
+        ));
+        stages.push(StageReport::skipped("coverage_report"));
+        return Ok(None);
+    }
+
+    let coverage_merge = coverage_merge_stage(
+        "coverage_merge",
+        &args.llvm_profdata_bin,
+        &profraws,
+        &profdata,
+        timeout,
+    );
+    let coverage_merge_ok = coverage_merge.status == StageStatus::Passed;
+    stages.push(coverage_merge);
+    if !coverage_merge_ok {
+        stages.push(StageReport::skipped("coverage_report"));
+        return Ok(None);
+    }
+
+    let summary_path = coverage_dir.join("coverage-summary.json");
+    let objects = discover_coverage_objects(&coverage_build_dir);
+    let (coverage_report, coverage) = coverage_report_stage(
+        &args.llvm_cov_bin,
+        &objects,
+        &profdata,
+        &[],
+        &summary_path,
+        timeout,
+    )?;
+    stages.push(coverage_report);
+
+    Ok(coverage)
+}
+
+fn append_skipped_cmake_coverage_stages(stages: &mut Vec<StageReport>) {
+    stages.push(StageReport::skipped("coverage_cmake_configure"));
+    stages.push(StageReport::skipped("coverage_cmake_build"));
+    stages.push(StageReport::skipped("coverage_ctest"));
+    stages.push(StageReport::skipped("coverage_merge"));
+    stages.push(StageReport::skipped("coverage_report"));
+}
+
 fn coverage_run_stage(executable: &Path, profraw: &Path, timeout: Duration) -> StageReport {
     let spec = CommandSpec::new(executable.display().to_string())
         .env("LLVM_PROFILE_FILE", profraw.display().to_string());
@@ -741,40 +932,61 @@ fn coverage_run_stage(executable: &Path, profraw: &Path, timeout: Duration) -> S
 }
 
 fn coverage_merge_stage(
+    name: &str,
     llvm_profdata_bin: &str,
-    profraw: &Path,
+    profraws: &[PathBuf],
     profdata: &Path,
     timeout: Duration,
 ) -> StageReport {
-    let args = vec![
-        "merge".to_string(),
-        "-sparse".to_string(),
-        profraw.display().to_string(),
-        "-o".to_string(),
-        profdata.display().to_string(),
-    ];
+    let mut args = vec!["merge".to_string(), "-sparse".to_string()];
+    args.extend(profraws.iter().map(|path| path.display().to_string()));
+    args.extend(["-o".to_string(), profdata.display().to_string()]);
     let spec = CommandSpec::new(llvm_profdata_bin).args(args);
     let command = spec.command_line();
     let result = run_command(spec, timeout);
-    stage_from_command_result("coverage_merge", command, result, Some(profdata))
+    stage_from_command_result(name, command, result, Some(profdata))
 }
 
 fn coverage_report_stage(
     llvm_cov_bin: &str,
-    executable: &Path,
+    objects: &[PathBuf],
     profdata: &Path,
-    source: &Path,
+    sources: &[PathBuf],
     summary_path: &Path,
     timeout: Duration,
 ) -> Result<(StageReport, Option<CoverageSummary>), AppError> {
-    let args = vec![
+    if objects.is_empty() {
+        return Ok((
+            failed_stage(
+                "coverage_report",
+                vec![
+                    llvm_cov_bin.to_string(),
+                    "export".to_string(),
+                    "<coverage-object>".to_string(),
+                    format!("-instr-profile={}", profdata.display()),
+                ],
+                "no coverage object files were found in the CMake coverage build",
+                Some(summary_path),
+            ),
+            None,
+        ));
+    }
+
+    let mut args = vec![
         "export".to_string(),
-        executable.display().to_string(),
+        objects[0].display().to_string(),
         format!("-instr-profile={}", profdata.display()),
         "--summary-only".to_string(),
-        "--sources".to_string(),
-        source.display().to_string(),
     ];
+    args.extend(
+        objects
+            .iter()
+            .skip(1)
+            .map(|object| format!("--object={}", object.display())),
+    );
+    for source in sources {
+        args.extend(["--sources".to_string(), source.display().to_string()]);
+    }
     let spec = CommandSpec::new(llvm_cov_bin).args(args);
     let command = spec.command_line();
     let result = run_command(spec, timeout);
@@ -807,6 +1019,106 @@ fn coverage_report_stage(
     })?;
 
     Ok((stage, Some(coverage)))
+}
+
+fn missing_coverage_input_stage(
+    name: &str,
+    llvm_profdata_bin: &str,
+    coverage_dir: &Path,
+    profdata: &Path,
+    message: &str,
+) -> StageReport {
+    failed_stage(
+        name,
+        vec![
+            llvm_profdata_bin.to_string(),
+            "merge".to_string(),
+            "-sparse".to_string(),
+            format!("{}/*.profraw", coverage_dir.display()),
+            "-o".to_string(),
+            profdata.display().to_string(),
+        ],
+        message,
+        Some(profdata),
+    )
+}
+
+fn failed_stage(
+    name: impl Into<String>,
+    command: Vec<String>,
+    message: &str,
+    artifact: Option<&Path>,
+) -> StageReport {
+    StageReport {
+        name: name.into(),
+        status: StageStatus::Failed,
+        command,
+        exit_code: None,
+        timed_out: false,
+        warnings: 0,
+        errors: 1,
+        diagnostics: Vec::new(),
+        stdout: String::new(),
+        stderr: message.to_string(),
+        artifact: artifact.map(Path::to_path_buf),
+    }
+}
+
+fn collect_files_with_extension(root: &Path, extension: &str) -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    collect_files(root, &mut paths, &|path| {
+        path.extension()
+            .and_then(|value| value.to_str())
+            .is_some_and(|value| value == extension)
+    });
+    paths.sort();
+    paths
+}
+
+fn discover_coverage_objects(build_dir: &Path) -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    collect_files(build_dir, &mut paths, &is_coverage_object);
+    paths.sort();
+    paths
+}
+
+fn collect_files(root: &Path, paths: &mut Vec<PathBuf>, matches: &dyn Fn(&Path) -> bool) {
+    let Ok(entries) = fs::read_dir(root) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_files(&path, paths, matches);
+        } else if matches(&path) {
+            paths.push(path);
+        }
+    }
+}
+
+fn is_coverage_object(path: &Path) -> bool {
+    if path
+        .components()
+        .any(|component| component.as_os_str().to_string_lossy() == "CMakeFiles")
+    {
+        return false;
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        path.is_file()
+            && fs::metadata(path)
+                .map(|metadata| metadata.permissions().mode() & 0o111 != 0)
+                .unwrap_or(false)
+    }
+
+    #[cfg(not(unix))]
+    {
+        path.is_file()
+    }
 }
 
 fn parse_coverage_summary(output: &str) -> Result<CoverageSummary, String> {

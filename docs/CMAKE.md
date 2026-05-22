@@ -60,4 +60,27 @@ ctest --test-dir <artifact_dir>/cmake-build --output-on-failure
 
 If syntax-only compile checks fail, `cmake_build` and `ctest` are skipped.
 
-Project-level sanitizer builds and coverage are not implemented yet. Those workflows will build on this generated compilation database and CTest support.
+Project-level sanitizer builds are not implemented yet. That workflow will build on this generated compilation database and CTest support.
+
+## Coverage
+
+Use `--coverage` to configure a separate coverage-instrumented build, build it, run CTest with `LLVM_PROFILE_FILE`, and collect an LLVM coverage summary:
+
+```bash
+cppgauntlet check ./my-cmake-project --coverage
+```
+
+This adds:
+
+- `coverage_cmake_configure`
+- `coverage_cmake_build`
+- `coverage_ctest`
+- `coverage_merge`
+- `coverage_report`
+
+Coverage artifacts are written under:
+
+```text
+.cppgauntlet/cmake-coverage-build
+.cppgauntlet/coverage/cmake
+```

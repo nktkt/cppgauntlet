@@ -21,7 +21,7 @@ The default optional tools are:
 
 Missing optional tools are reported but do not fail the command. Missing required tools make the command exit with status code `1`.
 
-`llvm-cov` and `llvm-profdata` are used by `cppgauntlet check <file> --coverage`.
+`llvm-cov` and `llvm-profdata` are used by `cppgauntlet check <file> --coverage` and CMake coverage checks.
 
 ## JSON Output
 

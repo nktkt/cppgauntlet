@@ -76,6 +76,9 @@ Current stage names:
 - `compile`
 - `compile:<source path>`
 - `coverage_compile`
+- `coverage_cmake_configure`
+- `coverage_cmake_build`
+- `coverage_ctest`
 - `coverage_run`
 - `coverage_merge`
 - `coverage_report`

@@ -193,7 +193,7 @@ Exit criteria:
 
 ## Near-Term Priorities
 
-1. Extend coverage from single-file checks to CMake and CTest workflows.
+1. Extend coverage to raw `compile_commands.json` workflows.
 2. Add custom test command support for non-CTest projects.
 3. Add CI-friendly summary controls for warnings, coverage, and analyzer findings.
 4. Add baseline support to distinguish new issues from existing debt.

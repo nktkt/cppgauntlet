@@ -72,7 +72,7 @@ coverage:
 - `static_analysis.clang_tidy`: run `clang-tidy` after compile checks
 - `static_analysis.clang_tidy_bin`: `clang-tidy` executable
 - `static_analysis.clang_tidy_checks`: optional checks expression passed as `--checks=<value>`
-- `coverage.enabled`: collect source-based coverage for single-file checks
+- `coverage.enabled`: collect source-based coverage for single-file and CMake checks
 - `coverage.llvm_cov_bin`: `llvm-cov` executable
 - `coverage.llvm_profdata_bin`: `llvm-profdata` executable
 

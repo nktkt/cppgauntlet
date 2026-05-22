@@ -41,6 +41,7 @@ cargo run -- check ./cmake-project
 cargo run -- check ./cmake-project --ctest
 cargo run -- check main.cpp --clang-tidy
 cargo run -- check main.cpp --coverage
+cargo run -- check ./cmake-project --coverage
 cargo run -- init
 cargo run -- doctor
 cargo run -- --format json check main.cpp
@@ -83,7 +84,7 @@ The first version will focus on a small, useful workflow:
 
 ## Future Scope
 
-- Project-level `llvm-cov` and `llvm-profdata` coverage reports.
+- `compile_commands.json` coverage workflows.
 - HTML reports.
 - libFuzzer workflows.
 - CI-friendly exit codes.
@@ -127,7 +128,7 @@ coverage:
 
 ## Project Status
 
-CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, optional `clang-tidy` analysis, single-file LLVM coverage, environment diagnostics, and JSON reports.
+CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, optional `clang-tidy` analysis, single-file and CMake/CTest LLVM coverage, environment diagnostics, and JSON reports.
 
 ## License
 
