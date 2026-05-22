@@ -186,6 +186,125 @@ fn check_hello_writes_json_report() {
 }
 
 #[test]
+#[cfg(unix)]
+fn check_source_runs_clang_tidy() {
+    if !clang_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "hello.cpp");
+    let clang_tidy = make_fake_script(
+        temp.path(),
+        "fake-clang-tidy",
+        "echo 'hello.cpp:1:1: warning: fake tidy warning [fake-check]'\n",
+    );
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args([
+            "check",
+            "hello.cpp",
+            "--sanitizers",
+            "none",
+            "--clang-tidy",
+            "--clang-tidy-bin",
+            clang_tidy.to_str().unwrap(),
+            "--clang-tidy-checks",
+            "modernize-*",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("clang_tidy"))
+        .stdout(predicate::str::contains("Warnings: 1"));
+
+    let value = read_report(temp.path());
+    assert_eq!(value["status"], "passed");
+    assert_eq!(stage(&value, "clang_tidy")["status"], "passed");
+    assert_eq!(stage(&value, "clang_tidy")["warnings"], 1);
+    assert!(stage(&value, "clang_tidy")["command"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|arg| arg == "--checks=modernize-*"));
+}
+
+#[test]
+#[cfg(unix)]
+fn check_source_reports_clang_tidy_failure() {
+    if !clang_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "hello.cpp");
+    let clang_tidy = make_fake_script(
+        temp.path(),
+        "fake-clang-tidy-fail",
+        "echo 'hello.cpp:1:1: error: fake tidy failure [fake-check]'\nexit 2\n",
+    );
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args([
+            "check",
+            "hello.cpp",
+            "--sanitizers",
+            "none",
+            "--clang-tidy-bin",
+            clang_tidy.to_str().unwrap(),
+        ])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("Status: FAILED"));
+
+    let value = read_report(temp.path());
+    assert_eq!(value["status"], "failed");
+    assert_eq!(stage(&value, "clang_tidy")["status"], "failed");
+    assert_eq!(stage(&value, "clang_tidy")["errors"], 1);
+}
+
+#[test]
+#[cfg(unix)]
+fn check_config_can_enable_clang_tidy() {
+    if !clang_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "hello.cpp");
+    let clang_tidy = make_fake_script(temp.path(), "configured-clang-tidy", "exit 0\n");
+    fs::write(
+        temp.path().join("cppgauntlet.yaml"),
+        format!(
+            r#"sanitizers:
+  enabled: []
+static_analysis:
+  clang_tidy: true
+  clang_tidy_bin: "{}"
+  clang_tidy_checks: "bugprone-*"
+"#,
+            clang_tidy.display()
+        ),
+    )
+    .unwrap();
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args(["check", "hello.cpp"])
+        .assert()
+        .success();
+
+    let value = read_report(temp.path());
+    assert_eq!(stage(&value, "clang_tidy")["status"], "passed");
+    assert!(stage(&value, "clang_tidy")["command"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|arg| arg == "--checks=bugprone-*"));
+}
+
+#[test]
 fn check_uses_default_yaml_config() {
     if !clang_available() {
         return;
@@ -338,6 +457,48 @@ fn check_compile_commands_file_target_works() {
     let value = read_report(temp.path());
     assert_eq!(value["status"], "passed");
     assert_eq!(value["target"]["path"], "compile_commands.json");
+}
+
+#[test]
+#[cfg(unix)]
+fn check_compile_commands_can_run_clang_tidy() {
+    if !clang_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    write_project_source(temp.path(), "src/good.cpp", "int good() { return 1; }\n");
+    write_compile_commands(
+        temp.path(),
+        &[serde_json::json!({
+            "directory": temp.path(),
+            "file": "src/good.cpp",
+            "arguments": ["clang++", "-std=c++20", "-c", "src/good.cpp"]
+        })],
+    );
+    let clang_tidy = make_fake_script(temp.path(), "project-clang-tidy", "exit 0\n");
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args([
+            "check",
+            ".",
+            "--clang-tidy",
+            "--clang-tidy-bin",
+            clang_tidy.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("clang_tidy:"));
+
+    let value = read_report(temp.path());
+    let tidy_stage = stage_with_prefix(&value, "clang_tidy:");
+    assert_eq!(tidy_stage["status"], "passed");
+    assert!(tidy_stage["command"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|arg| arg == "-p"));
 }
 
 #[test]
@@ -738,6 +899,15 @@ fn stage_name_exists(value: &serde_json::Value, prefix: &str) -> bool {
         .any(|stage| stage["name"].as_str().unwrap().starts_with(prefix))
 }
 
+fn stage_with_prefix<'a>(value: &'a serde_json::Value, prefix: &str) -> &'a serde_json::Value {
+    value["stages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|stage| stage["name"].as_str().unwrap().starts_with(prefix))
+        .unwrap()
+}
+
 fn write_project_source(dir: &std::path::Path, relative_path: &str, contents: &str) {
     let path = dir.join(relative_path);
     fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -784,14 +954,20 @@ add_test(NAME cppgauntlet_fixture_test COMMAND cppgauntlet_fixture_test)
 
 #[cfg(unix)]
 fn make_fake_tool(dir: &std::path::Path, name: &str, version: &str) {
+    make_fake_script(dir, name, &format!("echo '{version}'\n"));
+}
+
+#[cfg(unix)]
+fn make_fake_script(dir: &std::path::Path, name: &str, body: &str) -> std::path::PathBuf {
     use std::os::unix::fs::PermissionsExt;
 
     let path = dir.join(name);
-    fs::write(&path, format!("#!/bin/sh\necho '{version}'\n")).unwrap();
+    fs::write(&path, format!("#!/bin/sh\n{body}")).unwrap();
 
     let mut permissions = fs::metadata(&path).unwrap().permissions();
     permissions.set_mode(0o755);
-    fs::set_permissions(path, permissions).unwrap();
+    fs::set_permissions(&path, permissions).unwrap();
+    path
 }
 
 #[cfg(unix)]

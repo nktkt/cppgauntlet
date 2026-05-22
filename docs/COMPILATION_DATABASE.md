@@ -14,6 +14,13 @@ When the target is a directory, CppGauntlet looks for:
 
 The current implementation runs one syntax-only compile stage per compilation database entry. It appends `-fsyntax-only` to each recorded command so the check validates the translation unit without producing object files.
 
+When `--clang-tidy` is enabled, CppGauntlet runs one `clang-tidy:<source path>` stage per compilation database entry after all syntax-only compile stages pass:
+
+```bash
+cppgauntlet check ./build --clang-tidy
+cppgauntlet check ./compile_commands.json --clang-tidy --clang-tidy-checks "bugprone-*,modernize-*"
+```
+
 Runtime execution and sanitizer execution are still single-file workflows. Project-level runtime and sanitizer orchestration will be added after build-system detection becomes more complete.
 
 For CMake projects, see [CMAKE.md](CMAKE.md).

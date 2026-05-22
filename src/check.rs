@@ -51,13 +51,14 @@ pub fn run(args: CheckArgs) -> Result<Report, AppError> {
 
 fn run_source_file(args: ResolvedCheckArgs, source: PathBuf) -> Result<Report, AppError> {
     let source = source.canonicalize().unwrap_or(source);
-    let artifact_root = args.artifact_dir;
+    let artifact_root = args.artifact_dir.clone();
     let build_dir = artifact_root.join("build");
     create_dir(&artifact_root)?;
     create_dir(&build_dir)?;
 
     let report_path = args
         .report
+        .clone()
         .unwrap_or_else(|| artifact_root.join("cppgauntlet-report.json"));
     let sanitizers = parse_sanitizers(&args.sanitizers)?;
     let timeout = Duration::from_secs(args.timeout_seconds);
@@ -82,6 +83,20 @@ fn run_source_file(args: ResolvedCheckArgs, source: PathBuf) -> Result<Report, A
         stages.push(run_stage);
     } else {
         stages.push(StageReport::skipped("run"));
+    }
+
+    if args.clang_tidy {
+        if compile_ok {
+            stages.push(clang_tidy_source_stage(
+                &args.clang_tidy_bin,
+                args.clang_tidy_checks.as_deref(),
+                &source,
+                args.standard.as_flag(),
+                timeout,
+            ));
+        } else {
+            stages.push(StageReport::skipped("clang_tidy"));
+        }
     }
 
     if sanitizers.is_empty() {
@@ -157,20 +172,16 @@ fn run_compilation_database_with_stages(
     database: CompilationDatabase,
     mut stages: Vec<StageReport>,
 ) -> Result<Report, AppError> {
-    let artifact_root = args.artifact_dir;
+    let artifact_root = args.artifact_dir.clone();
     create_dir(&artifact_root)?;
 
     let report_path = args
         .report
+        .clone()
         .unwrap_or_else(|| artifact_root.join("cppgauntlet-report.json"));
     let timeout = Duration::from_secs(args.timeout_seconds);
-    stages.extend(
-        database
-            .entries
-            .iter()
-            .map(|unit| compilation_database_compile_stage(unit, timeout))
-            .collect::<Result<Vec<_>, _>>()?,
-    );
+    append_compilation_database_compile_stages(&mut stages, &database, timeout)?;
+    append_clang_tidy_stages(&mut stages, &database, &args, timeout);
 
     build_and_write_report(
         database.path,
@@ -206,13 +217,8 @@ fn run_cmake_project(args: ResolvedCheckArgs, project_dir: PathBuf) -> Result<Re
     let database = compdb::load_for_target(&build_dir)?;
     let mut stages = vec![cmake_stage];
     let timeout = Duration::from_secs(args.timeout_seconds);
-    stages.extend(
-        database
-            .entries
-            .iter()
-            .map(|unit| compilation_database_compile_stage(unit, timeout))
-            .collect::<Result<Vec<_>, _>>()?,
-    );
+    append_compilation_database_compile_stages(&mut stages, &database, timeout)?;
+    append_clang_tidy_stages(&mut stages, &database, &args, timeout);
 
     if args.ctest {
         if stages
@@ -309,8 +315,10 @@ fn cmake_configure_stage(source_dir: &Path, build_dir: &Path, timeout: Duration)
 
 fn cmake_build_stage(build_dir: &Path, timeout: Duration) -> StageReport {
     let args = vec!["--build".to_string(), build_dir.display().to_string()];
-    let result = run_command(CommandSpec::new("cmake").args(args), timeout);
-    stage_from_command_result("cmake_build", result, Some(build_dir))
+    let spec = CommandSpec::new("cmake").args(args);
+    let command = spec.command_line();
+    let result = run_command(spec, timeout);
+    stage_from_command_result("cmake_build", command, result, Some(build_dir))
 }
 
 fn ctest_stage(build_dir: &Path, timeout: Duration) -> StageReport {
@@ -319,21 +327,25 @@ fn ctest_stage(build_dir: &Path, timeout: Duration) -> StageReport {
         build_dir.display().to_string(),
         "--output-on-failure".to_string(),
     ];
-    let result = run_command(CommandSpec::new("ctest").args(args), timeout);
-    stage_from_command_result("ctest", result, Some(build_dir))
+    let spec = CommandSpec::new("ctest").args(args);
+    let command = spec.command_line();
+    let result = run_command(spec, timeout);
+    stage_from_command_result("ctest", command, result, Some(build_dir))
 }
 
 fn stage_from_command_result(
-    name: &str,
+    name: impl Into<String>,
+    command: Vec<String>,
     result: Result<crate::runner::CommandResult, AppError>,
     artifact: Option<&Path>,
 ) -> StageReport {
+    let name = name.into();
     match result {
         Ok(result) => stage_from_result(name, result, artifact),
         Err(error) => StageReport {
-            name: name.to_string(),
+            name,
             status: StageStatus::Failed,
-            command: Vec::new(),
+            command,
             exit_code: None,
             timed_out: false,
             warnings: 0,
@@ -344,6 +356,54 @@ fn stage_from_command_result(
             artifact: artifact.map(Path::to_path_buf),
         },
     }
+}
+
+fn append_compilation_database_compile_stages(
+    stages: &mut Vec<StageReport>,
+    database: &CompilationDatabase,
+    timeout: Duration,
+) -> Result<(), AppError> {
+    stages.extend(
+        database
+            .entries
+            .iter()
+            .map(|unit| compilation_database_compile_stage(unit, timeout))
+            .collect::<Result<Vec<_>, _>>()?,
+    );
+
+    Ok(())
+}
+
+fn append_clang_tidy_stages(
+    stages: &mut Vec<StageReport>,
+    database: &CompilationDatabase,
+    args: &ResolvedCheckArgs,
+    timeout: Duration,
+) {
+    if !args.clang_tidy {
+        return;
+    }
+
+    let database_dir = database.path.parent().unwrap_or_else(|| Path::new("."));
+    if stages
+        .iter()
+        .any(|stage| stage.status == StageStatus::Failed)
+    {
+        stages.extend(database.entries.iter().map(|unit| {
+            StageReport::skipped(format!("clang_tidy:{}", source_path(unit).display()))
+        }));
+        return;
+    }
+
+    stages.extend(database.entries.iter().map(|unit| {
+        clang_tidy_compilation_database_stage(
+            unit,
+            &args.clang_tidy_bin,
+            args.clang_tidy_checks.as_deref(),
+            database_dir,
+            timeout,
+        )
+    }));
 }
 
 enum CheckTarget {
@@ -390,6 +450,9 @@ struct ResolvedCheckArgs {
     report: Option<PathBuf>,
     timeout_seconds: u64,
     ctest: bool,
+    clang_tidy: bool,
+    clang_tidy_bin: String,
+    clang_tidy_checks: Option<String>,
 }
 
 impl ResolvedCheckArgs {
@@ -399,6 +462,11 @@ impl ResolvedCheckArgs {
         let config_sanitizers = config.sanitizers_csv();
         let config_report = config.report_path();
         let config_ctest = config.ctest_enabled();
+        let config_clang_tidy = config.clang_tidy_enabled();
+        let config_clang_tidy_bin = config.clang_tidy_bin();
+        let config_clang_tidy_checks = config.clang_tidy_checks();
+        let cli_requested_clang_tidy =
+            args.clang_tidy || args.clang_tidy_bin.is_some() || args.clang_tidy_checks.is_some();
 
         Ok(Self {
             file: args.file,
@@ -424,6 +492,12 @@ impl ResolvedCheckArgs {
                 .or(config.timeout_seconds)
                 .unwrap_or(30),
             ctest: args.ctest || config_ctest.unwrap_or(false),
+            clang_tidy: cli_requested_clang_tidy || config_clang_tidy.unwrap_or(false),
+            clang_tidy_bin: args
+                .clang_tidy_bin
+                .or(config_clang_tidy_bin)
+                .unwrap_or_else(|| "clang-tidy".to_string()),
+            clang_tidy_checks: args.clang_tidy_checks.or(config_clang_tidy_checks),
         })
     }
 }
@@ -485,6 +559,62 @@ fn compilation_database_compile_stage(
         result,
         None,
     ))
+}
+
+fn clang_tidy_source_stage(
+    clang_tidy_bin: &str,
+    checks: Option<&str>,
+    source: &Path,
+    standard_flag: &str,
+    timeout: Duration,
+) -> StageReport {
+    let mut args = clang_tidy_args(checks);
+    args.extend([
+        source.display().to_string(),
+        "--".to_string(),
+        standard_flag.to_string(),
+    ]);
+
+    let spec = CommandSpec::new(clang_tidy_bin).args(args);
+    let command = spec.command_line();
+    let result = run_command(spec, timeout);
+    stage_from_command_result("clang_tidy", command, result, None)
+}
+
+fn clang_tidy_compilation_database_stage(
+    unit: &CompilationUnit,
+    clang_tidy_bin: &str,
+    checks: Option<&str>,
+    database_dir: &Path,
+    timeout: Duration,
+) -> StageReport {
+    let source = source_path(unit);
+    let mut args = clang_tidy_args(checks);
+    args.extend([
+        source.display().to_string(),
+        "-p".to_string(),
+        database_dir.display().to_string(),
+    ]);
+
+    let spec = CommandSpec::new(clang_tidy_bin)
+        .args(args)
+        .current_dir(unit.directory.clone());
+    let command = spec.command_line();
+    let result = run_command(spec, timeout);
+
+    stage_from_command_result(
+        format!("clang_tidy:{}", source.display()),
+        command,
+        result,
+        None,
+    )
+}
+
+fn clang_tidy_args(checks: Option<&str>) -> Vec<String> {
+    checks
+        .filter(|checks| !checks.trim().is_empty())
+        .map(|checks| vec![format!("--checks={checks}")])
+        .unwrap_or_default()
 }
 
 fn run_executable_stage(

@@ -39,6 +39,7 @@ Report and stage status values use snake case:
 ```
 
 Warnings do not currently fail a report. Compile failures, runtime failures, sanitizer failures, and timeouts do fail a report.
+`clang-tidy` warnings do not fail a report unless the `clang-tidy` process itself exits non-zero.
 
 ## Stage
 
@@ -64,6 +65,8 @@ Current stage names:
 
 - `cmake_configure`
 - `cmake_build`
+- `clang_tidy`
+- `clang_tidy:<source path>`
 - `compile`
 - `compile:<source path>`
 - `ctest`
@@ -71,11 +74,11 @@ Current stage names:
 - `sanitize_compile`
 - `sanitize_run`
 
-`compile:<source path>` is used for project checks created from `compile_commands.json`.
+`compile:<source path>` and `clang_tidy:<source path>` are used for project checks created from `compile_commands.json`.
 
 ## Diagnostics
 
-Diagnostics are extracted from compiler and sanitizer stderr output.
+Diagnostics are extracted from compiler, sanitizer, and `clang-tidy` stdout/stderr output.
 
 ```json
 {

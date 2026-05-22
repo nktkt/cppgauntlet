@@ -39,6 +39,7 @@ cargo run -- check ./project
 cargo run -- check ./project/compile_commands.json
 cargo run -- check ./cmake-project
 cargo run -- check ./cmake-project --ctest
+cargo run -- check main.cpp --clang-tidy
 cargo run -- init
 cargo run -- doctor
 cargo run -- --format json check main.cpp
@@ -63,6 +64,7 @@ See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the current configuration
 See [docs/DOCTOR.md](docs/DOCTOR.md) for environment diagnostics.
 See [docs/COMPILATION_DATABASE.md](docs/COMPILATION_DATABASE.md) for project checks through `compile_commands.json`.
 See [docs/CMAKE.md](docs/CMAKE.md) for CMake project checks.
+See [docs/CLANG_TIDY.md](docs/CLANG_TIDY.md) for static analysis with `clang-tidy`.
 
 ## MVP Scope
 
@@ -78,10 +80,6 @@ The first version will focus on a small, useful workflow:
 
 ## Future Scope
 
-- CMake project detection.
-- `compile_commands.json` support.
-- `clang-tidy` integration.
-- `ctest` integration.
 - `llvm-cov` and `llvm-profdata` coverage reports.
 - HTML reports.
 - libFuzzer workflows.
@@ -109,14 +107,19 @@ sanitizers:
     - undefined
 
 report:
-  formats:
-    - text
-    - json
+  path: .cppgauntlet/cppgauntlet-report.json
+
+test:
+  ctest: false
+
+static_analysis:
+  clang_tidy: false
+  clang_tidy_bin: clang-tidy
 ```
 
 ## Project Status
 
-CppGauntlet is in early implementation. The repository currently includes the Rust CLI skeleton and the first single-file `check` workflow.
+CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, optional `clang-tidy` analysis, environment diagnostics, and JSON reports.
 
 ## License
 

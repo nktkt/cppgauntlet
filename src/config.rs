@@ -31,6 +31,9 @@ pub struct ProjectConfig {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub test: Option<TestConfig>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub static_analysis: Option<StaticAnalysisConfig>,
 }
 
 impl ProjectConfig {
@@ -47,6 +50,11 @@ impl ProjectConfig {
                 path: Some(PathBuf::from(".cppgauntlet/cppgauntlet-report.json")),
             }),
             test: Some(TestConfig { ctest: Some(false) }),
+            static_analysis: Some(StaticAnalysisConfig {
+                clang_tidy: Some(false),
+                clang_tidy_bin: Some("clang-tidy".to_string()),
+                clang_tidy_checks: None,
+            }),
         }
     }
 
@@ -75,6 +83,24 @@ impl ProjectConfig {
     pub fn ctest_enabled(&self) -> Option<bool> {
         self.test.as_ref().and_then(|test| test.ctest)
     }
+
+    pub fn clang_tidy_enabled(&self) -> Option<bool> {
+        self.static_analysis
+            .as_ref()
+            .and_then(|analysis| analysis.clang_tidy)
+    }
+
+    pub fn clang_tidy_bin(&self) -> Option<String> {
+        self.static_analysis
+            .as_ref()
+            .and_then(|analysis| analysis.clang_tidy_bin.clone())
+    }
+
+    pub fn clang_tidy_checks(&self) -> Option<String> {
+        self.static_analysis
+            .as_ref()
+            .and_then(|analysis| analysis.clang_tidy_checks.clone())
+    }
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -96,6 +122,19 @@ pub struct ReportConfig {
 pub struct TestConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ctest: Option<bool>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct StaticAnalysisConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clang_tidy: Option<bool>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clang_tidy_bin: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clang_tidy_checks: Option<String>,
 }
 
 pub fn load_config(requested_path: Option<&Path>) -> Result<ProjectConfig, AppError> {

@@ -48,6 +48,11 @@ report:
 
 test:
   ctest: false
+
+static_analysis:
+  clang_tidy: false
+  clang_tidy_bin: clang-tidy
+  clang_tidy_checks: null
 ```
 
 ## Fields
@@ -59,5 +64,8 @@ test:
 - `sanitizers.enabled`: `address`, `undefined`, `asan`, `ubsan`, or an empty list
 - `report.path`: explicit JSON report path
 - `test.ctest`: for CMake projects, build and run CTest after compile checks
+- `static_analysis.clang_tidy`: run `clang-tidy` after compile checks
+- `static_analysis.clang_tidy_bin`: `clang-tidy` executable
+- `static_analysis.clang_tidy_checks`: optional checks expression passed as `--checks=<value>`
 
 If `report.path` is omitted, CppGauntlet writes to `<artifact_dir>/cppgauntlet-report.json`.

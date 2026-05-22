@@ -14,6 +14,12 @@ cmake -S <project> -B <artifact_dir>/cmake-build -DCMAKE_EXPORT_COMPILE_COMMANDS
 
 The generated compilation database is then checked with the same project pipeline described in [COMPILATION_DATABASE.md](COMPILATION_DATABASE.md).
 
+Static analysis can be enabled for the generated compilation database:
+
+```bash
+cppgauntlet check ./my-cmake-project --clang-tidy
+```
+
 ## Artifacts
 
 By default, CMake files are generated under:
@@ -30,7 +36,7 @@ The JSON report is still written to:
 
 ## Current Scope
 
-Current CMake support configures the project and validates translation units with syntax-only compile checks.
+Current CMake support configures the project, validates translation units with syntax-only compile checks, can run `clang-tidy`, and can optionally build and run CTest.
 
 ## CTest
 

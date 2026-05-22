@@ -184,7 +184,8 @@ pub fn stage_from_result(
     result: crate::runner::CommandResult,
     artifact: Option<&Path>,
 ) -> StageReport {
-    let diagnostics = parse_diagnostics(&result.stderr);
+    let diagnostic_output = format!("{}\n{}", result.stdout, result.stderr);
+    let diagnostics = parse_diagnostics(&diagnostic_output);
     let warnings = diagnostics
         .iter()
         .filter(|diagnostic| diagnostic.severity == DiagnosticSeverity::Warning)

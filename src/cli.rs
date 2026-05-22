@@ -71,6 +71,18 @@ pub struct CheckArgs {
     /// For CMake projects, build the project and run ctest after compile checks.
     #[arg(long)]
     pub ctest: bool,
+
+    /// Run clang-tidy analysis after compile checks.
+    #[arg(long)]
+    pub clang_tidy: bool,
+
+    /// clang-tidy executable.
+    #[arg(long)]
+    pub clang_tidy_bin: Option<String>,
+
+    /// clang-tidy checks expression.
+    #[arg(long)]
+    pub clang_tidy_checks: Option<String>,
 }
 
 #[derive(Debug, Args)]
