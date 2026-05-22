@@ -169,4 +169,4 @@ CppGauntlet is in early implementation. The repository currently includes single
 
 ## License
 
-License information will be added before the first release.
+CppGauntlet is licensed under the [MIT License](LICENSE).
