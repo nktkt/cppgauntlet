@@ -35,6 +35,8 @@ The first implementation supports a single-file check workflow:
 
 ```bash
 cargo run -- check main.cpp
+cargo run -- check ./project
+cargo run -- check ./project/compile_commands.json
 cargo run -- init
 cargo run -- doctor
 cargo run -- --format json check main.cpp
@@ -57,6 +59,7 @@ The current JSON report schema is version `2`. Each stage records:
 See [docs/REPORT_SCHEMA.md](docs/REPORT_SCHEMA.md) for the current report contract.
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the current configuration file format.
 See [docs/DOCTOR.md](docs/DOCTOR.md) for environment diagnostics.
+See [docs/COMPILATION_DATABASE.md](docs/COMPILATION_DATABASE.md) for project checks through `compile_commands.json`.
 
 ## MVP Scope
 

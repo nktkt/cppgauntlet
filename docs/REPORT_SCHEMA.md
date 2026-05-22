@@ -63,9 +63,12 @@ Each stage describes one command or one skipped pipeline step:
 Current stage names:
 
 - `compile`
+- `compile:<source path>`
 - `run`
 - `sanitize_compile`
 - `sanitize_run`
+
+`compile:<source path>` is used for project checks created from `compile_commands.json`.
 
 ## Diagnostics
 

@@ -5,8 +5,29 @@ pub enum AppError {
     #[error("target path does not exist: {0}")]
     TargetMissing(PathBuf),
 
-    #[error("target path is not a file: {0}")]
-    TargetNotFile(PathBuf),
+    #[error("unsupported check target: {0}. Expected a C++ source file, a directory containing compile_commands.json, or a compile_commands.json file")]
+    UnsupportedCheckTarget(PathBuf),
+
+    #[error("could not find compile_commands.json under: {0}")]
+    CompilationDatabaseMissing(PathBuf),
+
+    #[error("failed to read compilation database {path}: {source}")]
+    ReadCompilationDatabase {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+
+    #[error("failed to parse compilation database {path}: {source}")]
+    ParseCompilationDatabase {
+        path: PathBuf,
+        source: serde_json::Error,
+    },
+
+    #[error("compilation database is empty: {0}")]
+    EmptyCompilationDatabase(PathBuf),
+
+    #[error("compilation database entry has no executable command for file: {0}")]
+    InvalidCompilationCommand(PathBuf),
 
     #[error("invalid sanitizer '{0}'. Expected address, undefined, asan, ubsan, or none")]
     InvalidSanitizer(String),

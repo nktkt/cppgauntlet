@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crate::cli::{CheckArgs, CppStandard};
+use crate::compdb::{self, CompilationDatabase, CompilationUnit};
 use crate::config;
 use crate::error::AppError;
 use crate::report::{
@@ -35,9 +36,16 @@ impl Sanitizer {
 
 pub fn run(args: CheckArgs) -> Result<Report, AppError> {
     let args = ResolvedCheckArgs::from_cli(args)?;
-    validate_target(&args.file)?;
+    let target = CheckTarget::resolve(&args.file)?;
 
-    let source = args.file.canonicalize().unwrap_or(args.file.clone());
+    match target {
+        CheckTarget::SourceFile(source) => run_source_file(args, source),
+        CheckTarget::CompilationDatabase(database) => run_compilation_database(args, database),
+    }
+}
+
+fn run_source_file(args: ResolvedCheckArgs, source: PathBuf) -> Result<Report, AppError> {
+    let source = source.canonicalize().unwrap_or(source);
     let artifact_root = args.artifact_dir;
     let build_dir = artifact_root.join("build");
     create_dir(&artifact_root)?;
@@ -132,6 +140,74 @@ pub fn run(args: CheckArgs) -> Result<Report, AppError> {
     Ok(report)
 }
 
+fn run_compilation_database(
+    args: ResolvedCheckArgs,
+    database: CompilationDatabase,
+) -> Result<Report, AppError> {
+    let artifact_root = args.artifact_dir;
+    create_dir(&artifact_root)?;
+
+    let report_path = args
+        .report
+        .unwrap_or_else(|| artifact_root.join("cppgauntlet-report.json"));
+    let timeout = Duration::from_secs(args.timeout_seconds);
+    let stages = database
+        .entries
+        .iter()
+        .map(|unit| compilation_database_compile_stage(unit, timeout))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let summary = summarize(&stages);
+    let status = if summary.failed_stages == 0 {
+        ReportStatus::Passed
+    } else {
+        ReportStatus::Failed
+    };
+
+    let report = Report {
+        schema_version: 2,
+        tool: ToolInfo {
+            name: "CppGauntlet".to_string(),
+            version: env!("CARGO_PKG_VERSION").to_string(),
+        },
+        target: TargetInfo {
+            path: database.path,
+            standard: "from compilation database".to_string(),
+            compiler: "from compilation database".to_string(),
+        },
+        status,
+        summary,
+        stages,
+        report_path,
+    };
+
+    write_report(&report)?;
+    Ok(report)
+}
+
+enum CheckTarget {
+    SourceFile(PathBuf),
+    CompilationDatabase(CompilationDatabase),
+}
+
+impl CheckTarget {
+    fn resolve(path: &Path) -> Result<Self, AppError> {
+        if !path.exists() {
+            return Err(AppError::TargetMissing(path.to_path_buf()));
+        }
+
+        if is_compilation_database_file(path) || path.is_dir() {
+            return compdb::load_for_target(path).map(Self::CompilationDatabase);
+        }
+
+        if path.is_file() {
+            return Ok(Self::SourceFile(path.to_path_buf()));
+        }
+
+        Err(AppError::UnsupportedCheckTarget(path.to_path_buf()))
+    }
+}
+
 #[derive(Debug)]
 struct ResolvedCheckArgs {
     file: PathBuf,
@@ -177,18 +253,6 @@ impl ResolvedCheckArgs {
     }
 }
 
-fn validate_target(path: &Path) -> Result<(), AppError> {
-    if !path.exists() {
-        return Err(AppError::TargetMissing(path.to_path_buf()));
-    }
-
-    if !path.is_file() {
-        return Err(AppError::TargetNotFile(path.to_path_buf()));
-    }
-
-    Ok(())
-}
-
 fn create_dir(path: &Path) -> Result<(), AppError> {
     fs::create_dir_all(path).map_err(|source| AppError::CreateDir {
         path: path.to_path_buf(),
@@ -223,6 +287,31 @@ fn compile_stage(
     Ok(stage_from_result(name, result, Some(output)))
 }
 
+fn compilation_database_compile_stage(
+    unit: &CompilationUnit,
+    timeout: Duration,
+) -> Result<StageReport, AppError> {
+    let Some((program, args)) = unit.arguments.split_first() else {
+        return Err(AppError::InvalidCompilationCommand(unit.file.clone()));
+    };
+    let mut args = args.to_vec();
+    args.push("-fsyntax-only".to_string());
+
+    let source = source_path(unit);
+    let result = run_command(
+        CommandSpec::new(program)
+            .args(args)
+            .current_dir(unit.directory.clone()),
+        timeout,
+    )?;
+
+    Ok(stage_from_result(
+        format!("compile:{}", source.display()),
+        result,
+        None,
+    ))
+}
+
 fn run_executable_stage(
     name: &str,
     executable: &Path,
@@ -230,6 +319,22 @@ fn run_executable_stage(
 ) -> Result<StageReport, AppError> {
     let result = run_command(CommandSpec::new(executable.display().to_string()), timeout)?;
     Ok(stage_from_result(name, result, Some(executable)))
+}
+
+fn is_compilation_database_file(path: &Path) -> bool {
+    path.is_file()
+        && path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name == "compile_commands.json")
+}
+
+fn source_path(unit: &CompilationUnit) -> PathBuf {
+    if unit.file.is_absolute() {
+        unit.file.clone()
+    } else {
+        unit.directory.join(&unit.file)
+    }
 }
 
 fn parse_sanitizers(value: &str) -> Result<Vec<Sanitizer>, AppError> {

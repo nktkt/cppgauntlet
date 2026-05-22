@@ -27,6 +27,11 @@ impl CommandSpec {
         self
     }
 
+    pub fn current_dir(mut self, current_dir: impl Into<PathBuf>) -> Self {
+        self.current_dir = Some(current_dir.into());
+        self
+    }
+
     pub fn command_line(&self) -> Vec<String> {
         let mut parts = Vec::with_capacity(self.args.len() + 1);
         parts.push(self.program.clone());

@@ -1,5 +1,6 @@
 mod check;
 mod cli;
+mod compdb;
 mod config;
 mod doctor;
 mod error;

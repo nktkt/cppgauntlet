@@ -264,6 +264,131 @@ sanitizers:
 }
 
 #[test]
+fn check_directory_uses_compile_commands_json() {
+    if !clang_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    write_project_source(
+        temp.path(),
+        "src/good.cpp",
+        "int add(int a, int b) { return a + b; }\n",
+    );
+    write_project_source(
+        temp.path(),
+        "src/warning.cpp",
+        "int warning_case() { int unused = 42; return 0; }\n",
+    );
+    write_compile_commands(
+        temp.path(),
+        &[
+            serde_json::json!({
+                "directory": temp.path(),
+                "file": "src/good.cpp",
+                "arguments": ["clang++", "-std=c++20", "-Wall", "-Wextra", "-Wpedantic", "-c", "src/good.cpp"]
+            }),
+            serde_json::json!({
+                "directory": temp.path(),
+                "file": "src/warning.cpp",
+                "command": "clang++ -std=c++20 -Wall -Wextra -Wpedantic -c src/warning.cpp"
+            }),
+        ],
+    );
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args(["check", "."])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Status: PASSED"))
+        .stdout(predicate::str::contains("Warnings: 1"));
+
+    let value = read_report(temp.path());
+    assert_eq!(value["status"], "passed");
+    assert_eq!(value["target"]["standard"], "from compilation database");
+    assert_eq!(value["stages"].as_array().unwrap().len(), 2);
+    assert!(stage_name_exists(&value, "compile:"));
+    assert_eq!(value["summary"]["warnings"], 1);
+}
+
+#[test]
+fn check_compile_commands_file_target_works() {
+    if !clang_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    write_project_source(temp.path(), "src/good.cpp", "int good() { return 1; }\n");
+    write_compile_commands(
+        temp.path(),
+        &[serde_json::json!({
+            "directory": temp.path(),
+            "file": "src/good.cpp",
+            "arguments": ["clang++", "-std=c++20", "-c", "src/good.cpp"]
+        })],
+    );
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args(["check", "compile_commands.json"])
+        .assert()
+        .success();
+
+    let value = read_report(temp.path());
+    assert_eq!(value["status"], "passed");
+    assert_eq!(value["target"]["path"], "compile_commands.json");
+}
+
+#[test]
+fn check_directory_reports_compile_database_failure() {
+    if !clang_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    write_project_source(
+        temp.path(),
+        "src/broken.cpp",
+        "int broken() { return missing_symbol; }\n",
+    );
+    write_compile_commands(
+        temp.path(),
+        &[serde_json::json!({
+            "directory": temp.path(),
+            "file": "src/broken.cpp",
+            "arguments": ["clang++", "-std=c++20", "-Wall", "-Wextra", "-Wpedantic", "-c", "src/broken.cpp"]
+        })],
+    );
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args(["check", "."])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("Status: FAILED"));
+
+    let value = read_report(temp.path());
+    assert_eq!(value["status"], "failed");
+    assert_eq!(value["summary"]["failed_stages"], 1);
+    assert_eq!(value["summary"]["errors"], 1);
+}
+
+#[test]
+fn check_directory_without_compile_commands_reports_error() {
+    let temp = tempdir().unwrap();
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args(["check", "."])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "could not find compile_commands.json",
+        ));
+}
+
+#[test]
 fn invalid_config_standard_reports_error() {
     let temp = tempdir().unwrap();
     copy_fixture(temp.path(), "hello.cpp");
@@ -449,6 +574,28 @@ fn stage<'a>(value: &'a serde_json::Value, name: &str) -> &'a serde_json::Value 
         .iter()
         .find(|stage| stage["name"] == name)
         .unwrap()
+}
+
+fn stage_name_exists(value: &serde_json::Value, prefix: &str) -> bool {
+    value["stages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|stage| stage["name"].as_str().unwrap().starts_with(prefix))
+}
+
+fn write_project_source(dir: &std::path::Path, relative_path: &str, contents: &str) {
+    let path = dir.join(relative_path);
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(path, contents).unwrap();
+}
+
+fn write_compile_commands(dir: &std::path::Path, entries: &[serde_json::Value]) {
+    fs::write(
+        dir.join("compile_commands.json"),
+        serde_json::to_string_pretty(entries).unwrap(),
+    )
+    .unwrap();
 }
 
 #[cfg(unix)]

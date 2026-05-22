@@ -37,7 +37,7 @@ pub enum Commands {
 
 #[derive(Debug, Args)]
 pub struct CheckArgs {
-    /// C++ source file to check.
+    /// C++ source file, project directory, or compile_commands.json file to check.
     pub file: PathBuf,
 
     /// Configuration file to load. Defaults to cppgauntlet.yaml when it exists.
