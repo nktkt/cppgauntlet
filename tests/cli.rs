@@ -389,6 +389,64 @@ fn check_directory_without_compile_commands_reports_error() {
 }
 
 #[test]
+fn check_cmake_project_generates_compile_commands() {
+    if !clang_available() || !cmake_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    write_cmake_project(
+        temp.path(),
+        "int cmake_fixture_add(int a, int b) { return a + b; }\n",
+    );
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args(["check", ".", "--timeout-seconds", "60"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Status: PASSED"))
+        .stdout(predicate::str::contains("cmake_configure"));
+
+    assert!(temp
+        .path()
+        .join(".cppgauntlet/cmake-build/compile_commands.json")
+        .exists());
+
+    let value = read_report(temp.path());
+    assert_eq!(value["status"], "passed");
+    assert_eq!(stage(&value, "cmake_configure")["status"], "passed");
+    assert!(stage_name_exists(&value, "compile:"));
+}
+
+#[test]
+fn check_cmake_configure_failure_writes_report() {
+    if !cmake_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    fs::write(
+        temp.path().join("CMakeLists.txt"),
+        "cmake_minimum_required(VERSION 3.16)\nthis_is_not_a_cmake_command()\n",
+    )
+    .unwrap();
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args(["check", ".", "--timeout-seconds", "30"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("Status: FAILED"))
+        .stdout(predicate::str::contains("cmake_configure"));
+
+    let value = read_report(temp.path());
+    assert_eq!(value["status"], "failed");
+    assert_eq!(stage(&value, "cmake_configure")["status"], "failed");
+    assert_eq!(value["summary"]["failed_stages"], 1);
+}
+
+#[test]
 fn invalid_config_standard_reports_error() {
     let temp = tempdir().unwrap();
     copy_fixture(temp.path(), "hello.cpp");
@@ -548,6 +606,10 @@ fn clang_available() -> bool {
     StdCommand::new("clang++").arg("--version").output().is_ok()
 }
 
+fn cmake_available() -> bool {
+    StdCommand::new("cmake").arg("--version").output().is_ok()
+}
+
 fn copy_fixture(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
     let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
@@ -594,6 +656,20 @@ fn write_compile_commands(dir: &std::path::Path, entries: &[serde_json::Value]) 
     fs::write(
         dir.join("compile_commands.json"),
         serde_json::to_string_pretty(entries).unwrap(),
+    )
+    .unwrap();
+}
+
+fn write_cmake_project(dir: &std::path::Path, source: &str) {
+    write_project_source(dir, "src/lib.cpp", source);
+    fs::write(
+        dir.join("CMakeLists.txt"),
+        r#"cmake_minimum_required(VERSION 3.16)
+project(CppGauntletFixture LANGUAGES CXX)
+add_library(cppgauntlet_fixture src/lib.cpp)
+target_compile_features(cppgauntlet_fixture PRIVATE cxx_std_17)
+target_compile_options(cppgauntlet_fixture PRIVATE -Wall -Wextra -Wpedantic)
+"#,
     )
     .unwrap();
 }

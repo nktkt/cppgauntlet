@@ -37,6 +37,7 @@ The first implementation supports a single-file check workflow:
 cargo run -- check main.cpp
 cargo run -- check ./project
 cargo run -- check ./project/compile_commands.json
+cargo run -- check ./cmake-project
 cargo run -- init
 cargo run -- doctor
 cargo run -- --format json check main.cpp
@@ -60,6 +61,7 @@ See [docs/REPORT_SCHEMA.md](docs/REPORT_SCHEMA.md) for the current report contra
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the current configuration file format.
 See [docs/DOCTOR.md](docs/DOCTOR.md) for environment diagnostics.
 See [docs/COMPILATION_DATABASE.md](docs/COMPILATION_DATABASE.md) for project checks through `compile_commands.json`.
+See [docs/CMAKE.md](docs/CMAKE.md) for CMake project checks.
 
 ## MVP Scope
 

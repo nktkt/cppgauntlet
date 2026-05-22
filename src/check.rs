@@ -41,6 +41,7 @@ pub fn run(args: CheckArgs) -> Result<Report, AppError> {
     match target {
         CheckTarget::SourceFile(source) => run_source_file(args, source),
         CheckTarget::CompilationDatabase(database) => run_compilation_database(args, database),
+        CheckTarget::CMakeProject(project_dir) => run_cmake_project(args, project_dir),
     }
 }
 
@@ -144,6 +145,14 @@ fn run_compilation_database(
     args: ResolvedCheckArgs,
     database: CompilationDatabase,
 ) -> Result<Report, AppError> {
+    run_compilation_database_with_stages(args, database, Vec::new())
+}
+
+fn run_compilation_database_with_stages(
+    args: ResolvedCheckArgs,
+    database: CompilationDatabase,
+    mut stages: Vec<StageReport>,
+) -> Result<Report, AppError> {
     let artifact_root = args.artifact_dir;
     create_dir(&artifact_root)?;
 
@@ -151,12 +160,56 @@ fn run_compilation_database(
         .report
         .unwrap_or_else(|| artifact_root.join("cppgauntlet-report.json"));
     let timeout = Duration::from_secs(args.timeout_seconds);
-    let stages = database
-        .entries
-        .iter()
-        .map(|unit| compilation_database_compile_stage(unit, timeout))
-        .collect::<Result<Vec<_>, _>>()?;
+    stages.extend(
+        database
+            .entries
+            .iter()
+            .map(|unit| compilation_database_compile_stage(unit, timeout))
+            .collect::<Result<Vec<_>, _>>()?,
+    );
 
+    build_and_write_report(
+        database.path,
+        "from compilation database".to_string(),
+        "from compilation database".to_string(),
+        stages,
+        report_path,
+    )
+}
+
+fn run_cmake_project(args: ResolvedCheckArgs, project_dir: PathBuf) -> Result<Report, AppError> {
+    let artifact_root = args.artifact_dir.clone();
+    let build_dir = artifact_root.join("cmake-build");
+    create_dir(&artifact_root)?;
+
+    let report_path = args
+        .report
+        .clone()
+        .unwrap_or_else(|| artifact_root.join("cppgauntlet-report.json"));
+    let timeout = Duration::from_secs(args.timeout_seconds);
+    let cmake_stage = cmake_configure_stage(&project_dir, &build_dir, timeout);
+
+    if cmake_stage.status == StageStatus::Failed {
+        return build_and_write_report(
+            project_dir,
+            "from CMake".to_string(),
+            "from CMake".to_string(),
+            vec![cmake_stage],
+            report_path,
+        );
+    }
+
+    let database = compdb::load_for_target(&build_dir)?;
+    run_compilation_database_with_stages(args, database, vec![cmake_stage])
+}
+
+fn build_and_write_report(
+    target_path: PathBuf,
+    standard: String,
+    compiler: String,
+    stages: Vec<StageReport>,
+    report_path: PathBuf,
+) -> Result<Report, AppError> {
     let summary = summarize(&stages);
     let status = if summary.failed_stages == 0 {
         ReportStatus::Passed
@@ -171,9 +224,9 @@ fn run_compilation_database(
             version: env!("CARGO_PKG_VERSION").to_string(),
         },
         target: TargetInfo {
-            path: database.path,
-            standard: "from compilation database".to_string(),
-            compiler: "from compilation database".to_string(),
+            path: target_path,
+            standard,
+            compiler,
         },
         status,
         summary,
@@ -185,9 +238,39 @@ fn run_compilation_database(
     Ok(report)
 }
 
+fn cmake_configure_stage(source_dir: &Path, build_dir: &Path, timeout: Duration) -> StageReport {
+    let args = vec![
+        "-S".to_string(),
+        source_dir.display().to_string(),
+        "-B".to_string(),
+        build_dir.display().to_string(),
+        "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON".to_string(),
+    ];
+    let spec = CommandSpec::new("cmake").args(args);
+    let command = spec.command_line();
+
+    match run_command(spec, timeout) {
+        Ok(result) => stage_from_result("cmake_configure", result, Some(build_dir)),
+        Err(error) => StageReport {
+            name: "cmake_configure".to_string(),
+            status: StageStatus::Failed,
+            command,
+            exit_code: None,
+            timed_out: false,
+            warnings: 0,
+            errors: 1,
+            diagnostics: Vec::new(),
+            stdout: String::new(),
+            stderr: error.to_string(),
+            artifact: Some(build_dir.to_path_buf()),
+        },
+    }
+}
+
 enum CheckTarget {
     SourceFile(PathBuf),
     CompilationDatabase(CompilationDatabase),
+    CMakeProject(PathBuf),
 }
 
 impl CheckTarget {
@@ -196,8 +279,18 @@ impl CheckTarget {
             return Err(AppError::TargetMissing(path.to_path_buf()));
         }
 
-        if is_compilation_database_file(path) || path.is_dir() {
+        if is_compilation_database_file(path) {
             return compdb::load_for_target(path).map(Self::CompilationDatabase);
+        }
+
+        if path.is_dir() {
+            return match compdb::load_for_target(path) {
+                Ok(database) => Ok(Self::CompilationDatabase(database)),
+                Err(AppError::CompilationDatabaseMissing(_)) if is_cmake_project(path) => {
+                    Ok(Self::CMakeProject(path.to_path_buf()))
+                }
+                Err(error) => Err(error),
+            };
         }
 
         if path.is_file() {
@@ -327,6 +420,10 @@ fn is_compilation_database_file(path: &Path) -> bool {
             .file_name()
             .and_then(|name| name.to_str())
             .is_some_and(|name| name == "compile_commands.json")
+}
+
+fn is_cmake_project(path: &Path) -> bool {
+    path.join("CMakeLists.txt").is_file()
 }
 
 fn source_path(unit: &CompilationUnit) -> PathBuf {

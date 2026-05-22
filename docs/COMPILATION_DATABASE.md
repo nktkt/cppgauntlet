@@ -16,6 +16,8 @@ The current implementation runs one syntax-only compile stage per compilation da
 
 Runtime execution and sanitizer execution are still single-file workflows. Project-level runtime and sanitizer orchestration will be added after build-system detection becomes more complete.
 
+For CMake projects, see [CMAKE.md](CMAKE.md).
+
 ## Supported Entry Shapes
 
 CppGauntlet supports entries with `arguments`:

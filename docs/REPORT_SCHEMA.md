@@ -62,6 +62,7 @@ Each stage describes one command or one skipped pipeline step:
 
 Current stage names:
 
+- `cmake_configure`
 - `compile`
 - `compile:<source path>`
 - `run`
