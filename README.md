@@ -53,6 +53,8 @@ The first version will focus on a small, useful workflow:
 - CI-friendly exit codes.
 - Quality scoring for trend tracking.
 
+See [ROADMAP.md](ROADMAP.md) for the long-term product roadmap.
+
 ## Configuration Sketch
 
 ```yaml
