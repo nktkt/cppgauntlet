@@ -149,6 +149,10 @@ pub struct CheckArgs {
     #[arg(long)]
     pub max_warnings: Option<usize>,
 
+    /// Fail the report when analyzer findings exceed this number.
+    #[arg(long)]
+    pub max_analyzer_findings: Option<usize>,
+
     /// Fail the report when line coverage is below this percentage.
     #[arg(long, value_parser = parse_percentage)]
     pub min_line_coverage: Option<f64>,

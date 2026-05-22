@@ -68,6 +68,7 @@ baseline:
 
 policy:
   max_warnings: null
+  max_analyzer_findings: null
   min_line_coverage: null
   fail_on_new_diagnostics: false
 ```
@@ -93,6 +94,7 @@ policy:
 - `coverage.llvm_profdata_bin`: `llvm-profdata` executable
 - `baseline.path`: previous CppGauntlet JSON report used to classify diagnostics as new or existing
 - `policy.max_warnings`: fail the report when total warnings exceed this number
+- `policy.max_analyzer_findings`: fail the report when analyzer diagnostics exceed this number
 - `policy.min_line_coverage`: fail the report when line coverage is below this percentage
 - `policy.fail_on_new_diagnostics`: fail the report when diagnostics are not present in the baseline report
 

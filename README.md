@@ -45,6 +45,7 @@ cargo run -- check ./project/compile_commands.json --coverage --test-command "./
 cargo run -- check ./cmake-project --coverage
 cargo run -- check ./project --test-command "make test"
 cargo run -- check main.cpp --max-warnings 0
+cargo run -- check main.cpp --max-analyzer-findings 0
 cargo run -- check main.cpp --coverage --min-line-coverage 80
 cargo run -- check main.cpp --baseline .cppgauntlet/baseline.json --fail-on-new-diagnostics
 cargo run -- baseline update --report .cppgauntlet/cppgauntlet-report.json --output .cppgauntlet/baseline.json
@@ -151,6 +152,7 @@ baseline:
 
 policy:
   max_warnings: null
+  max_analyzer_findings: null
   min_line_coverage: null
   fail_on_new_diagnostics: false
 ```

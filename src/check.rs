@@ -605,6 +605,7 @@ fn append_policy_stage(
     baseline: Option<&BaselineSummary>,
 ) {
     if args.max_warnings.is_none()
+        && args.max_analyzer_findings.is_none()
         && args.min_line_coverage.is_none()
         && !args.fail_on_new_diagnostics
     {
@@ -629,6 +630,7 @@ fn policy_stage(
     baseline: Option<&BaselineSummary>,
 ) -> StageReport {
     let warnings: usize = stages.iter().map(|stage| stage.warnings).sum();
+    let analyzer_findings = analyzer_finding_count(stages);
     let mut failures = Vec::new();
     let mut passes = Vec::new();
 
@@ -639,6 +641,18 @@ fn policy_stage(
             ));
         } else {
             passes.push(format!("warnings {warnings} <= {max_warnings}"));
+        }
+    }
+
+    if let Some(max_analyzer_findings) = args.max_analyzer_findings {
+        if analyzer_findings > max_analyzer_findings {
+            failures.push(format!(
+                "analyzer findings {analyzer_findings} exceed configured maximum {max_analyzer_findings}"
+            ));
+        } else {
+            passes.push(format!(
+                "analyzer findings {analyzer_findings} <= {max_analyzer_findings}"
+            ));
         }
     }
 
@@ -700,6 +714,18 @@ fn policy_stage(
         stderr: failures.join("\n"),
         artifact: None,
     }
+}
+
+fn analyzer_finding_count(stages: &[StageReport]) -> usize {
+    stages
+        .iter()
+        .filter(|stage| is_analyzer_stage(&stage.name))
+        .map(|stage| stage.diagnostics.len())
+        .sum()
+}
+
+fn is_analyzer_stage(name: &str) -> bool {
+    name == "clang_tidy" || name.starts_with("clang_tidy:")
 }
 
 fn apply_baseline(stages: &mut [StageReport], args: &ResolvedCheckArgs) -> Option<BaselineSummary> {
@@ -772,6 +798,7 @@ struct ResolvedCheckArgs {
     llvm_profdata_bin: String,
     baseline: Option<Baseline>,
     max_warnings: Option<usize>,
+    max_analyzer_findings: Option<usize>,
     min_line_coverage: Option<f64>,
     fail_on_new_diagnostics: bool,
 }
@@ -795,10 +822,14 @@ impl ResolvedCheckArgs {
         let config_llvm_profdata_bin = config.llvm_profdata_bin();
         let config_baseline_path = config.baseline_path();
         let config_max_warnings = config.max_warnings();
+        let config_max_analyzer_findings = config.max_analyzer_findings();
         let config_min_line_coverage = config.min_line_coverage();
         let config_fail_on_new_diagnostics = config.fail_on_new_diagnostics();
-        let cli_requested_clang_tidy =
-            args.clang_tidy || args.clang_tidy_bin.is_some() || args.clang_tidy_checks.is_some();
+        let max_analyzer_findings = args.max_analyzer_findings.or(config_max_analyzer_findings);
+        let cli_requested_clang_tidy = args.clang_tidy
+            || args.clang_tidy_bin.is_some()
+            || args.clang_tidy_checks.is_some()
+            || max_analyzer_findings.is_some();
         let cli_requested_coverage =
             args.coverage || args.llvm_cov_bin.is_some() || args.llvm_profdata_bin.is_some();
         let baseline_path = args.baseline.or(config_baseline_path);
@@ -856,6 +887,7 @@ impl ResolvedCheckArgs {
                 .unwrap_or_else(|| "llvm-profdata".to_string()),
             baseline,
             max_warnings: args.max_warnings.or(config_max_warnings),
+            max_analyzer_findings,
             min_line_coverage,
             fail_on_new_diagnostics,
         })

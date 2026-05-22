@@ -78,6 +78,7 @@ impl ProjectConfig {
             baseline: Some(BaselineConfig { path: None }),
             policy: Some(PolicyConfig {
                 max_warnings: None,
+                max_analyzer_findings: None,
                 min_line_coverage: None,
                 fail_on_new_diagnostics: Some(false),
             }),
@@ -176,6 +177,12 @@ impl ProjectConfig {
         self.policy.as_ref().and_then(|policy| policy.max_warnings)
     }
 
+    pub fn max_analyzer_findings(&self) -> Option<usize> {
+        self.policy
+            .as_ref()
+            .and_then(|policy| policy.max_analyzer_findings)
+    }
+
     pub fn min_line_coverage(&self) -> Option<f64> {
         self.policy
             .as_ref()
@@ -260,6 +267,9 @@ pub struct BaselineConfig {
 pub struct PolicyConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_warnings: Option<usize>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_analyzer_findings: Option<usize>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub min_line_coverage: Option<f64>,

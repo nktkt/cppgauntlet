@@ -194,7 +194,7 @@ Exit criteria:
 ## Near-Term Priorities
 
 1. Add coverage source filtering and object discovery controls for large projects.
-2. Expand policy gates to analyzer findings and changed-line coverage.
+2. Add changed-line coverage policy gates.
 3. Add baseline pruning and changed-diagnostic views for CI artifact workflows.
 4. Add SARIF fingerprints and richer source locations.
 5. Create contribution and issue templates before the first public release milestone.

@@ -777,6 +777,90 @@ fn check_policy_can_fail_on_warning_threshold() {
 
 #[test]
 #[cfg(unix)]
+fn check_policy_can_fail_on_analyzer_findings() {
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "hello.cpp");
+    let compiler = make_fake_compiler(temp.path(), "policy-analyzer-clang++");
+    let clang_tidy = make_fake_script(
+        temp.path(),
+        "policy-clang-tidy",
+        "echo 'hello.cpp:1:1: warning: analyzer finding [fake-check]'\n",
+    );
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args([
+            "check",
+            "hello.cpp",
+            "--compiler",
+            compiler.to_str().unwrap(),
+            "--sanitizers",
+            "none",
+            "--clang-tidy-bin",
+            clang_tidy.to_str().unwrap(),
+            "--max-analyzer-findings",
+            "0",
+        ])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("clang_tidy"))
+        .stdout(predicate::str::contains("policy: failed"));
+
+    let value = read_report(temp.path());
+    assert_eq!(stage(&value, "clang_tidy")["status"], "passed");
+    assert_eq!(stage(&value, "policy")["status"], "failed");
+    assert!(stage(&value, "policy")["stderr"]
+        .as_str()
+        .unwrap()
+        .contains("analyzer findings 1 exceed configured maximum 0"));
+}
+
+#[test]
+#[cfg(unix)]
+fn check_config_can_enable_analyzer_policy() {
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "hello.cpp");
+    let compiler = make_fake_compiler(temp.path(), "configured-analyzer-policy-clang++");
+    let clang_tidy = make_fake_script(
+        temp.path(),
+        "configured-policy-clang-tidy",
+        "echo 'hello.cpp:1:1: warning: analyzer finding [fake-check]'\n",
+    );
+    fs::write(
+        temp.path().join("cppgauntlet.yaml"),
+        format!(
+            r#"compiler: "{}"
+sanitizers:
+  enabled: []
+static_analysis:
+  clang_tidy_bin: "{}"
+policy:
+  max_analyzer_findings: 1
+"#,
+            compiler.display(),
+            clang_tidy.display()
+        ),
+    )
+    .unwrap();
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args(["check", "hello.cpp"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("policy: passed"));
+
+    let value = read_report(temp.path());
+    assert_eq!(stage(&value, "clang_tidy")["status"], "passed");
+    assert_eq!(stage(&value, "policy")["status"], "passed");
+    assert!(stage(&value, "policy")["stdout"]
+        .as_str()
+        .unwrap()
+        .contains("analyzer findings 1 <= 1"));
+}
+
+#[test]
+#[cfg(unix)]
 fn check_policy_can_pass_coverage_threshold() {
     let temp = tempdir().unwrap();
     copy_fixture(temp.path(), "hello.cpp");

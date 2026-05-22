@@ -31,6 +31,7 @@ cppgauntlet check main.cpp \
 - `--clang-tidy-checks`: pass a checks expression as `--checks=<value>`
 
 Passing `--clang-tidy-bin` or `--clang-tidy-checks` also enables the stage.
+Passing `--max-analyzer-findings` enables `clang-tidy` and adds a policy gate for diagnostics emitted by analyzer stages.
 
 ## Configuration
 
