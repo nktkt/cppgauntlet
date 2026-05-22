@@ -48,6 +48,9 @@ fn run(cli: Cli) -> Result<bool, AppError> {
                 OutputFormat::Markdown => {
                     println!("{}", report.render_markdown());
                 }
+                OutputFormat::Html => {
+                    println!("{}", report.render_html());
+                }
             }
 
             Ok(success)
@@ -64,6 +67,9 @@ fn run(cli: Cli) -> Result<bool, AppError> {
                 }
                 OutputFormat::Markdown => {
                     println!("{}", report.render_markdown());
+                }
+                OutputFormat::Html => {
+                    println!("{}", report.render_html());
                 }
             }
 
@@ -82,6 +88,9 @@ fn run(cli: Cli) -> Result<bool, AppError> {
                 }
                 OutputFormat::Markdown => {
                     println!("{}", report.render_markdown());
+                }
+                OutputFormat::Html => {
+                    println!("{}", report.render_html());
                 }
             }
 
@@ -104,6 +113,12 @@ fn run(cli: Cli) -> Result<bool, AppError> {
                 }
                 OutputFormat::Markdown => {
                     println!("# CppGauntlet Init\n\nCreated `{}`.", path.display());
+                }
+                OutputFormat::Html => {
+                    println!(
+                        "<!doctype html><html><head><meta charset=\"utf-8\"><title>CppGauntlet Init</title></head><body><h1>CppGauntlet Init</h1><p>Created <code>{}</code>.</p></body></html>",
+                        path.display()
+                    );
                 }
             }
 

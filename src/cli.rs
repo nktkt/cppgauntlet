@@ -22,6 +22,7 @@ pub enum OutputFormat {
     Text,
     Json,
     Markdown,
+    Html,
 }
 
 #[derive(Debug, Subcommand)]
@@ -95,6 +96,10 @@ pub struct CheckArgs {
     /// Optional Markdown report path.
     #[arg(long)]
     pub markdown_report: Option<PathBuf>,
+
+    /// Optional HTML report path.
+    #[arg(long)]
+    pub html_report: Option<PathBuf>,
 
     /// Per-command timeout in seconds.
     #[arg(long)]

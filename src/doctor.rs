@@ -108,10 +108,72 @@ impl DoctorReport {
 
         lines.join("\n")
     }
+
+    pub fn render_html(&self) -> String {
+        let mut rows = String::new();
+        for tool in &self.tools {
+            let detail = tool
+                .version
+                .as_deref()
+                .or(tool.error.as_deref())
+                .unwrap_or("no details");
+            rows.push_str(&format!(
+                "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                html_escape(&tool.name),
+                tool.required,
+                tool.available,
+                html_escape(detail)
+            ));
+        }
+
+        format!(
+            r#"<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CppGauntlet Doctor</title>
+<style>
+body {{ font-family: system-ui, sans-serif; margin: 2rem; color: #17202a; background: #f7f8fa; }}
+main {{ max-width: 980px; margin: 0 auto; background: #fff; border: 1px solid #d7dde5; padding: 1.5rem; }}
+table {{ border-collapse: collapse; width: 100%; }}
+th, td {{ border-bottom: 1px solid #d7dde5; padding: 0.55rem; text-align: left; }}
+</style>
+</head>
+<body>
+<main>
+<h1>CppGauntlet Doctor</h1>
+<p>Status: <strong>{}</strong></p>
+<p>Required missing: {}</p>
+<h2>Tools</h2>
+<table>
+<thead><tr><th>Tool</th><th>Required</th><th>Available</th><th>Detail</th></tr></thead>
+<tbody>{}</tbody>
+</table>
+</main>
+</body>
+</html>"#,
+            self.status.as_str(),
+            if self.required_missing.is_empty() {
+                "none".to_string()
+            } else {
+                html_escape(&self.required_missing.join(", "))
+            },
+            rows
+        )
+    }
 }
 
 fn markdown_cell(value: &str) -> String {
     value.replace('|', "\\|").replace('\n', " ")
+}
+
+fn html_escape(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]

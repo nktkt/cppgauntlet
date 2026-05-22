@@ -13,6 +13,8 @@ pub struct Report {
     pub report_path: PathBuf,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub markdown_report_path: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub html_report_path: Option<PathBuf>,
 }
 
 impl Report {
@@ -183,6 +185,187 @@ impl Report {
         }
 
         lines.join("\n")
+    }
+
+    pub fn render_html(&self) -> String {
+        let mut target_rows = vec![
+            html_table_row("Path", &self.target.path.display().to_string()),
+            html_table_row("Status", self.status.as_str()),
+            html_table_row("Standard", &self.target.standard),
+            html_table_row("Compiler", &self.target.compiler),
+            html_table_row("JSON report", &self.report_path.display().to_string()),
+        ];
+        if let Some(path) = &self.markdown_report_path {
+            target_rows.push(html_table_row(
+                "Markdown report",
+                &path.display().to_string(),
+            ));
+        }
+        if let Some(path) = &self.html_report_path {
+            target_rows.push(html_table_row("HTML report", &path.display().to_string()));
+        }
+
+        let mut summary_rows = vec![
+            html_table_row("Warnings", &self.summary.warnings.to_string()),
+            html_table_row("Errors", &self.summary.errors.to_string()),
+            html_table_row("Diagnostics", &self.summary.diagnostics.to_string()),
+            html_table_row("Failed stages", &self.summary.failed_stages.to_string()),
+            html_table_row(
+                "Timed out stages",
+                &self.summary.timed_out_stages.to_string(),
+            ),
+        ];
+        if let Some(coverage) = &self.summary.coverage {
+            summary_rows.extend([
+                html_table_row("Line coverage", &format!("{:.2}%", coverage.lines.percent)),
+                html_table_row(
+                    "Function coverage",
+                    &format!("{:.2}%", coverage.functions.percent),
+                ),
+                html_table_row(
+                    "Region coverage",
+                    &format!("{:.2}%", coverage.regions.percent),
+                ),
+            ]);
+        }
+        if let Some(baseline) = &self.summary.baseline {
+            summary_rows.extend([
+                html_table_row(
+                    "Baseline unique diagnostics",
+                    &baseline.baseline_unique_diagnostics.to_string(),
+                ),
+                html_table_row(
+                    "Current unique diagnostics",
+                    &baseline.current_unique_diagnostics.to_string(),
+                ),
+                html_table_row(
+                    "New diagnostics",
+                    &baseline.new_diagnostic_occurrences.to_string(),
+                ),
+                html_table_row(
+                    "Resolved diagnostics",
+                    &baseline.resolved_unique_diagnostics.to_string(),
+                ),
+            ]);
+        }
+
+        let stage_rows = self
+            .stages
+            .iter()
+            .map(|stage| {
+                let exit = stage
+                    .exit_code
+                    .map(|code| code.to_string())
+                    .unwrap_or_else(|| "n/a".to_string());
+                format!(
+                    r#"<tr><td>{}</td><td><span class="status status-{}">{}</span></td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>"#,
+                    html_escape(&stage.name),
+                    stage.status.as_str(),
+                    stage.status.as_str(),
+                    html_escape(&exit),
+                    stage.warnings,
+                    stage.errors,
+                    stage.timed_out
+                )
+            })
+            .collect::<String>();
+
+        let diagnostics = self
+            .stages
+            .iter()
+            .flat_map(|stage| {
+                stage
+                    .diagnostics
+                    .iter()
+                    .map(move |diagnostic| (stage.name.as_str(), diagnostic))
+            })
+            .collect::<Vec<_>>();
+        let diagnostics_html = if diagnostics.is_empty() {
+            "<p>No diagnostics recorded.</p>".to_string()
+        } else {
+            diagnostics
+                .iter()
+                .map(|(stage_name, diagnostic)| {
+                    let baseline = diagnostic
+                        .baseline_status
+                        .map(|status| format!(" / {}", status.as_str()))
+                        .unwrap_or_default();
+                    format!(
+                        r#"<article class="diagnostic"><h3>{}{}</h3><p><strong>Stage:</strong> <code>{}</code></p><p>{}</p><pre>{}</pre></article>"#,
+                        diagnostic.severity.as_str(),
+                        html_escape(&baseline),
+                        html_escape(stage_name),
+                        html_escape(&diagnostic.message),
+                        html_escape(&diagnostic.raw)
+                    )
+                })
+                .collect::<String>()
+        };
+
+        format!(
+            r#"<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CppGauntlet Check Report</title>
+<style>
+:root {{ color-scheme: light; --bg: #f6f7f9; --panel: #ffffff; --text: #182230; --muted: #5d6b7a; --border: #d7dde5; --pass: #0f7b46; --fail: #b42318; --skip: #6f5c00; }}
+body {{ margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--text); background: var(--bg); }}
+main {{ max-width: 1180px; margin: 0 auto; padding: 32px 20px 48px; }}
+header {{ margin-bottom: 24px; }}
+h1 {{ margin: 0 0 8px; font-size: 28px; }}
+h2 {{ margin-top: 28px; font-size: 18px; }}
+.status-line {{ color: var(--muted); }}
+section {{ background: var(--panel); border: 1px solid var(--border); padding: 18px; margin: 16px 0; }}
+table {{ width: 100%; border-collapse: collapse; }}
+th, td {{ border-bottom: 1px solid var(--border); padding: 9px 10px; text-align: left; vertical-align: top; }}
+th {{ color: var(--muted); font-weight: 600; }}
+code, pre {{ background: #eef1f5; }}
+code {{ padding: 1px 4px; }}
+pre {{ padding: 10px; overflow-x: auto; }}
+.status {{ font-weight: 700; }}
+.status-passed {{ color: var(--pass); }}
+.status-failed {{ color: var(--fail); }}
+.status-skipped {{ color: var(--skip); }}
+.diagnostic {{ border-top: 1px solid var(--border); padding-top: 14px; margin-top: 14px; }}
+.diagnostic h3 {{ margin: 0 0 8px; font-size: 16px; }}
+</style>
+</head>
+<body>
+<main>
+<header>
+<h1>CppGauntlet Check Report</h1>
+<div class="status-line">Status: <strong>{}</strong></div>
+</header>
+<section>
+<h2>Target</h2>
+<table><tbody>{}</tbody></table>
+</section>
+<section>
+<h2>Summary</h2>
+<table><tbody>{}</tbody></table>
+</section>
+<section>
+<h2>Stages</h2>
+<table>
+<thead><tr><th>Stage</th><th>Status</th><th>Exit</th><th>Warnings</th><th>Errors</th><th>Timed out</th></tr></thead>
+<tbody>{}</tbody>
+</table>
+</section>
+<section>
+<h2>Diagnostics</h2>
+{}
+</section>
+</main>
+</body>
+</html>"#,
+            self.status.as_str(),
+            target_rows.join(""),
+            summary_rows.join(""),
+            stage_rows,
+            diagnostics_html
+        )
     }
 }
 
@@ -431,4 +614,21 @@ fn baseline_line(summary: &Summary) -> String {
 
 fn markdown_cell(value: &str) -> String {
     value.replace('|', "\\|").replace('\n', " ")
+}
+
+fn html_table_row(label: &str, value: &str) -> String {
+    format!(
+        "<tr><th>{}</th><td>{}</td></tr>",
+        html_escape(label),
+        html_escape(value)
+    )
+}
+
+fn html_escape(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
 }

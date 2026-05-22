@@ -15,7 +15,8 @@ The current schema version is `2`.
   "summary": {},
   "stages": [],
   "report_path": ".cppgauntlet/cppgauntlet-report.json",
-  "markdown_report_path": ".cppgauntlet/cppgauntlet-report.md"
+  "markdown_report_path": ".cppgauntlet/cppgauntlet-report.md",
+  "html_report_path": ".cppgauntlet/cppgauntlet-report.html"
 }
 ```
 
@@ -56,7 +57,7 @@ Warnings do not fail a report unless the `policy.max_warnings` gate is configure
 `clang-tidy` warnings do not fail a report unless the `clang-tidy` process itself exits non-zero.
 The `coverage` object is omitted when coverage is not enabled or when coverage collection fails before a summary can be parsed. If all earlier stages pass, a configured `policy.min_line_coverage` gate fails when this summary is unavailable.
 The `baseline` object is omitted when no baseline report is configured.
-The top-level `markdown_report_path` field is omitted when no Markdown artifact is configured.
+The top-level `markdown_report_path` and `html_report_path` fields are omitted when those artifacts are not configured.
 
 ## Stage
 

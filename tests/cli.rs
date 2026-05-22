@@ -212,6 +212,34 @@ fn check_markdown_format_outputs_report() {
 }
 
 #[test]
+fn check_html_format_outputs_report() {
+    if !clang_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "hello.cpp");
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args([
+            "--format",
+            "html",
+            "check",
+            "hello.cpp",
+            "--sanitizers",
+            "none",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("<!doctype html>"))
+        .stdout(predicate::str::contains(
+            "<title>CppGauntlet Check Report</title>",
+        ))
+        .stdout(predicate::str::contains("No diagnostics recorded."));
+}
+
+#[test]
 fn check_can_write_markdown_report_file() {
     if !clang_available() {
         return;
@@ -243,6 +271,37 @@ fn check_can_write_markdown_report_file() {
 }
 
 #[test]
+fn check_can_write_html_report_file() {
+    if !clang_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "warning.cpp");
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args([
+            "check",
+            "warning.cpp",
+            "--sanitizers",
+            "none",
+            "--html-report",
+            "report.html",
+        ])
+        .assert()
+        .success();
+
+    let html = fs::read_to_string(temp.path().join("report.html")).unwrap();
+    assert!(html.contains("<!doctype html>"));
+    assert!(html.contains("<td>compile</td>"));
+    assert!(html.contains("unused variable"));
+
+    let value = read_report(temp.path());
+    assert_eq!(value["html_report_path"], "report.html");
+}
+
+#[test]
 fn check_config_can_write_markdown_report_file() {
     if !clang_available() {
         return;
@@ -268,6 +327,34 @@ report:
 
     let markdown = fs::read_to_string(temp.path().join("configured-report.md")).unwrap();
     assert!(markdown.contains("# CppGauntlet Check Report"));
+}
+
+#[test]
+fn check_config_can_write_html_report_file() {
+    if !clang_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "hello.cpp");
+    fs::write(
+        temp.path().join("cppgauntlet.yaml"),
+        r#"sanitizers:
+  enabled: []
+report:
+  html_path: configured-report.html
+"#,
+    )
+    .unwrap();
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args(["check", "hello.cpp"])
+        .assert()
+        .success();
+
+    let html = fs::read_to_string(temp.path().join("configured-report.html")).unwrap();
+    assert!(html.contains("<title>CppGauntlet Check Report</title>"));
 }
 
 #[test]
@@ -853,6 +940,8 @@ fn baseline_update_writes_reusable_baseline_report() {
             "current.json",
             "--markdown-report",
             "current.md",
+            "--html-report",
+            "current.html",
         ])
         .assert()
         .success();
@@ -876,6 +965,7 @@ fn baseline_update_writes_reusable_baseline_report() {
     let baseline = read_report_at(temp.path().join("baseline.json"));
     assert_eq!(baseline["report_path"], "baseline.json");
     assert!(baseline["markdown_report_path"].is_null());
+    assert!(baseline["html_report_path"].is_null());
     assert!(baseline["summary"]["baseline"].is_null());
     assert!(stage(&baseline, "compile")["diagnostics"][0]["baseline_status"].is_null());
 

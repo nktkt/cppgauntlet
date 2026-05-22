@@ -118,6 +118,45 @@ impl BaselineUpdateReport {
         ]
         .join("\n")
     }
+
+    pub fn render_html(&self) -> String {
+        format!(
+            r#"<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CppGauntlet Baseline</title>
+<style>
+body {{ font-family: system-ui, sans-serif; margin: 2rem; color: #17202a; background: #f7f8fa; }}
+main {{ max-width: 920px; margin: 0 auto; background: #fff; border: 1px solid #d7dde5; padding: 1.5rem; }}
+table {{ border-collapse: collapse; width: 100%; }}
+th, td {{ border-bottom: 1px solid #d7dde5; padding: 0.55rem; text-align: left; }}
+code {{ background: #eef1f5; padding: 0.1rem 0.25rem; }}
+</style>
+</head>
+<body>
+<main>
+<h1>CppGauntlet Baseline</h1>
+<table>
+<tbody>
+<tr><th>Status</th><td>updated</td></tr>
+<tr><th>Source report</th><td><code>{}</code></td></tr>
+<tr><th>Output</th><td><code>{}</code></td></tr>
+<tr><th>Diagnostics</th><td>{}</td></tr>
+<tr><th>Unique diagnostics</th><td>{}</td></tr>
+<tr><th>Stages</th><td>{}</td></tr>
+</tbody>
+</table>
+</main>
+</body>
+</html>"#,
+            html_escape(&self.source_report.display().to_string()),
+            html_escape(&self.output.display().to_string()),
+            self.diagnostics,
+            self.unique_diagnostics,
+            self.stages
+        )
+    }
 }
 
 pub fn run(args: BaselineArgs) -> Result<BaselineUpdateReport, AppError> {
@@ -163,6 +202,7 @@ fn read_report(path: &Path) -> Result<Report, AppError> {
 fn normalize_report_for_baseline(report: &mut Report, output: &Path) {
     report.report_path = output.to_path_buf();
     report.markdown_report_path = None;
+    report.html_report_path = None;
     report.summary.baseline = None;
 
     for diagnostic in report
@@ -224,4 +264,13 @@ fn normalize(value: &str) -> String {
 
 fn markdown_cell(value: &str) -> String {
     value.replace('|', "\\|").replace('\n', " ")
+}
+
+fn html_escape(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
 }

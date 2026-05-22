@@ -48,7 +48,9 @@ cargo run -- check main.cpp --coverage --min-line-coverage 80
 cargo run -- check main.cpp --baseline .cppgauntlet/baseline.json --fail-on-new-diagnostics
 cargo run -- baseline update --report .cppgauntlet/cppgauntlet-report.json --output .cppgauntlet/baseline.json
 cargo run -- --format markdown check main.cpp
+cargo run -- --format html check main.cpp
 cargo run -- check main.cpp --markdown-report .cppgauntlet/cppgauntlet-report.md
+cargo run -- check main.cpp --html-report .cppgauntlet/cppgauntlet-report.html
 cargo run -- init
 cargo run -- doctor
 cargo run -- --format json check main.cpp
@@ -79,7 +81,7 @@ See [docs/COVERAGE.md](docs/COVERAGE.md) for source-based coverage with LLVM too
 See [docs/TESTING.md](docs/TESTING.md) for CTest and custom test commands.
 See [docs/POLICY.md](docs/POLICY.md) for CI policy gates.
 See [docs/BASELINE.md](docs/BASELINE.md) for diagnostic baselines.
-See [docs/MARKDOWN_REPORTS.md](docs/MARKDOWN_REPORTS.md) for Markdown reports.
+See [docs/ARTIFACT_REPORTS.md](docs/ARTIFACT_REPORTS.md) for Markdown and HTML reports.
 
 ## MVP Scope
 
@@ -96,7 +98,7 @@ The first version will focus on a small, useful workflow:
 ## Future Scope
 
 - `compile_commands.json` coverage workflows.
-- HTML reports.
+- SARIF output.
 - libFuzzer workflows.
 - CI-friendly exit codes.
 - Quality scoring for trend tracking.
@@ -124,6 +126,7 @@ sanitizers:
 report:
   path: .cppgauntlet/cppgauntlet-report.json
   markdown_path: null
+  html_path: null
 
 test:
   ctest: false
@@ -149,7 +152,7 @@ policy:
 
 ## Project Status
 
-CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, custom test commands, optional `clang-tidy` analysis, single-file and CMake/CTest LLVM coverage, diagnostic baselines and baseline updates, CI policy gates, environment diagnostics, JSON reports, and Markdown reports.
+CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, custom test commands, optional `clang-tidy` analysis, single-file and CMake/CTest LLVM coverage, diagnostic baselines and baseline updates, CI policy gates, environment diagnostics, JSON reports, Markdown reports, and HTML reports.
 
 ## License
 
