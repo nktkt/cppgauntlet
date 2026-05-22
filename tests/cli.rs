@@ -92,6 +92,19 @@ fn init_force_overwrites_existing_config() {
 }
 
 #[test]
+fn github_code_scanning_example_is_documented() {
+    let workflow = fs::read_to_string("examples/github-actions/code-scanning.yml").unwrap();
+    assert!(workflow.contains("github/codeql-action/upload-sarif@v4"));
+    assert!(workflow.contains("security-events: write"));
+    assert!(workflow.contains("--sarif-report .cppgauntlet/cppgauntlet.sarif.json"));
+    assert!(workflow.contains("category: cppgauntlet"));
+
+    let docs = fs::read_to_string("docs/GITHUB_CODE_SCANNING.md").unwrap();
+    assert!(docs.contains("../examples/github-actions/code-scanning.yml"));
+    assert!(docs.contains("github/codeql-action/upload-sarif@v4"));
+}
+
+#[test]
 #[cfg(unix)]
 fn doctor_reports_custom_required_tool_available() {
     let temp = tempdir().unwrap();

@@ -1,0 +1,39 @@
+name: CppGauntlet code scanning
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "45 15 * * 4"
+
+jobs:
+  cppgauntlet:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install CppGauntlet
+        run: cargo install --git https://github.com/nktkt/cppgauntlet
+
+      - name: Run CppGauntlet
+        continue-on-error: true
+        run: |
+          cppgauntlet check path/to/main.cpp \
+            --sanitizers none \
+            --sarif-report .cppgauntlet/cppgauntlet.sarif.json
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: .cppgauntlet/cppgauntlet.sarif.json
+          category: cppgauntlet

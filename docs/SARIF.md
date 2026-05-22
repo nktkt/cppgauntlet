@@ -37,3 +37,5 @@ Each diagnostic becomes a SARIF result with:
 - `properties.stage`, `properties.raw`, and optional `properties.baselineStatus`
 
 The emitted `$schema` points to the OASIS SARIF 2.1.0 schema.
+
+See [GITHUB_CODE_SCANNING.md](GITHUB_CODE_SCANNING.md) for a GitHub Actions workflow that uploads this SARIF output to GitHub Code Scanning.

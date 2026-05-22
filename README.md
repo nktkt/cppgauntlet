@@ -84,6 +84,7 @@ See [docs/POLICY.md](docs/POLICY.md) for CI policy gates.
 See [docs/BASELINE.md](docs/BASELINE.md) for diagnostic baselines.
 See [docs/ARTIFACT_REPORTS.md](docs/ARTIFACT_REPORTS.md) for Markdown and HTML reports.
 See [docs/SARIF.md](docs/SARIF.md) for SARIF output.
+See [docs/GITHUB_CODE_SCANNING.md](docs/GITHUB_CODE_SCANNING.md) for GitHub Code Scanning integration.
 
 ## MVP Scope
 
@@ -100,7 +101,7 @@ The first version will focus on a small, useful workflow:
 ## Future Scope
 
 - `compile_commands.json` coverage workflows.
-- GitHub Code Scanning workflow examples.
+- SARIF fingerprints and richer source locations.
 - libFuzzer workflows.
 - CI-friendly exit codes.
 - Quality scoring for trend tracking.
