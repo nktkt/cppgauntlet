@@ -60,6 +60,14 @@ ctest --test-dir <artifact_dir>/cmake-build --output-on-failure
 
 If syntax-only compile checks fail, `cmake_build` and `ctest` are skipped.
 
+Custom test commands can also be used with CMake projects:
+
+```bash
+cppgauntlet check ./my-cmake-project --test-command "ctest --test-dir .cppgauntlet/cmake-build"
+```
+
+The command runs from the project directory after compile, analyzer, and optional CTest stages have passed.
+
 Project-level sanitizer builds are not implemented yet. That workflow will build on this generated compilation database and CTest support.
 
 ## Coverage

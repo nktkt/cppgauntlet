@@ -52,7 +52,10 @@ impl ProjectConfig {
             report: Some(ReportConfig {
                 path: Some(PathBuf::from(".cppgauntlet/cppgauntlet-report.json")),
             }),
-            test: Some(TestConfig { ctest: Some(false) }),
+            test: Some(TestConfig {
+                ctest: Some(false),
+                command: None,
+            }),
             static_analysis: Some(StaticAnalysisConfig {
                 clang_tidy: Some(false),
                 clang_tidy_bin: Some("clang-tidy".to_string()),
@@ -90,6 +93,10 @@ impl ProjectConfig {
 
     pub fn ctest_enabled(&self) -> Option<bool> {
         self.test.as_ref().and_then(|test| test.ctest)
+    }
+
+    pub fn test_command(&self) -> Option<String> {
+        self.test.as_ref().and_then(|test| test.command.clone())
     }
 
     pub fn clang_tidy_enabled(&self) -> Option<bool> {
@@ -146,6 +153,9 @@ pub struct ReportConfig {
 pub struct TestConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ctest: Option<bool>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub command: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]

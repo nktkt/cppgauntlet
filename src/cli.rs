@@ -73,6 +73,10 @@ pub struct CheckArgs {
     #[arg(long)]
     pub ctest: bool,
 
+    /// Run a custom test command after compile and analyzer checks.
+    #[arg(long)]
+    pub test_command: Option<String>,
+
     /// Run clang-tidy analysis after compile checks.
     #[arg(long)]
     pub clang_tidy: bool,

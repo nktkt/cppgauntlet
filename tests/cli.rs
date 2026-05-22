@@ -394,6 +394,99 @@ coverage:
 }
 
 #[test]
+#[cfg(unix)]
+fn check_compile_commands_can_run_custom_test_command() {
+    if !clang_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    write_project_source(temp.path(), "src/good.cpp", "int good() { return 1; }\n");
+    write_compile_commands(
+        temp.path(),
+        &[serde_json::json!({
+            "directory": temp.path(),
+            "file": "src/good.cpp",
+            "arguments": ["clang++", "-std=c++20", "-c", "src/good.cpp"]
+        })],
+    );
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args(["check", ".", "--test-command", "test -f src/good.cpp"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("test_command"));
+
+    let value = read_report(temp.path());
+    assert_eq!(stage(&value, "test_command")["status"], "passed");
+    assert!(stage(&value, "test_command")["command"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|arg| arg == "test -f src/good.cpp"));
+}
+
+#[test]
+#[cfg(unix)]
+fn check_custom_test_command_failure_fails_report() {
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "hello.cpp");
+    let compiler = make_fake_compiler(temp.path(), "test-command-clang++");
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args([
+            "check",
+            "hello.cpp",
+            "--compiler",
+            compiler.to_str().unwrap(),
+            "--sanitizers",
+            "none",
+            "--test-command",
+            "exit 4",
+        ])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("Status: FAILED"));
+
+    let value = read_report(temp.path());
+    assert_eq!(value["status"], "failed");
+    assert_eq!(stage(&value, "test_command")["status"], "failed");
+    assert_eq!(stage(&value, "test_command")["exit_code"], 4);
+}
+
+#[test]
+#[cfg(unix)]
+fn check_config_can_enable_custom_test_command() {
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "hello.cpp");
+    let compiler = make_fake_compiler(temp.path(), "configured-test-command-clang++");
+    fs::write(
+        temp.path().join("cppgauntlet.yaml"),
+        format!(
+            r#"compiler: "{}"
+sanitizers:
+  enabled: []
+test:
+  command: "test -f hello.cpp"
+"#,
+            compiler.display()
+        ),
+    )
+    .unwrap();
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args(["check", "hello.cpp"])
+        .assert()
+        .success();
+
+    let value = read_report(temp.path());
+    assert_eq!(stage(&value, "test_command")["status"], "passed");
+}
+
+#[test]
 fn check_uses_default_yaml_config() {
     if !clang_available() {
         return;

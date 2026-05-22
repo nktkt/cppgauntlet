@@ -139,6 +139,8 @@ fn run_source_file(args: ResolvedCheckArgs, source: PathBuf) -> Result<Report, A
         stages.push(StageReport::skipped("sanitize_run"));
     }
 
+    append_test_command_stage(&mut stages, &args, source.parent(), timeout);
+
     let coverage = if args.coverage {
         append_coverage_stages(
             &mut stages,
@@ -202,6 +204,8 @@ fn run_compilation_database_with_stages(
     let timeout = Duration::from_secs(args.timeout_seconds);
     append_compilation_database_compile_stages(&mut stages, &database, timeout)?;
     append_clang_tidy_stages(&mut stages, &database, &args, timeout);
+    let test_dir = database.path.parent();
+    append_test_command_stage(&mut stages, &args, test_dir, timeout);
 
     build_and_write_report(
         database.path,
@@ -263,6 +267,8 @@ fn run_cmake_project(args: ResolvedCheckArgs, project_dir: PathBuf) -> Result<Re
             stages.push(StageReport::skipped("ctest"));
         }
     }
+
+    append_test_command_stage(&mut stages, &args, Some(&project_dir), timeout);
 
     let coverage = if args.coverage {
         append_cmake_coverage_stages(&mut stages, &args, &project_dir, &artifact_root, timeout)?
@@ -501,6 +507,47 @@ fn append_clang_tidy_stages(
     }));
 }
 
+fn append_test_command_stage(
+    stages: &mut Vec<StageReport>,
+    args: &ResolvedCheckArgs,
+    current_dir: Option<&Path>,
+    timeout: Duration,
+) {
+    let Some(command) = args.test_command.as_deref() else {
+        return;
+    };
+
+    if stages
+        .iter()
+        .any(|stage| stage.status == StageStatus::Failed)
+    {
+        stages.push(StageReport::skipped("test_command"));
+        return;
+    }
+
+    stages.push(test_command_stage(command, current_dir, timeout));
+}
+
+fn test_command_stage(command: &str, current_dir: Option<&Path>, timeout: Duration) -> StageReport {
+    let mut spec = shell_command_spec(command);
+    if let Some(current_dir) = current_dir {
+        spec = spec.current_dir(current_dir.to_path_buf());
+    }
+    let command_line = spec.command_line();
+    let result = run_command(spec, timeout);
+    stage_from_command_result("test_command", command_line, result, None)
+}
+
+#[cfg(unix)]
+fn shell_command_spec(command: &str) -> CommandSpec {
+    CommandSpec::new("sh").args(["-c", command])
+}
+
+#[cfg(windows)]
+fn shell_command_spec(command: &str) -> CommandSpec {
+    CommandSpec::new("cmd").args(["/C", command])
+}
+
 enum CheckTarget {
     SourceFile(PathBuf),
     CompilationDatabase(CompilationDatabase),
@@ -545,6 +592,7 @@ struct ResolvedCheckArgs {
     report: Option<PathBuf>,
     timeout_seconds: u64,
     ctest: bool,
+    test_command: Option<String>,
     clang_tidy: bool,
     clang_tidy_bin: String,
     clang_tidy_checks: Option<String>,
@@ -560,6 +608,7 @@ impl ResolvedCheckArgs {
         let config_sanitizers = config.sanitizers_csv();
         let config_report = config.report_path();
         let config_ctest = config.ctest_enabled();
+        let config_test_command = config.test_command();
         let config_clang_tidy = config.clang_tidy_enabled();
         let config_clang_tidy_bin = config.clang_tidy_bin();
         let config_clang_tidy_checks = config.clang_tidy_checks();
@@ -595,6 +644,7 @@ impl ResolvedCheckArgs {
                 .or(config.timeout_seconds)
                 .unwrap_or(30),
             ctest: args.ctest || config_ctest.unwrap_or(false),
+            test_command: args.test_command.or(config_test_command),
             clang_tidy: cli_requested_clang_tidy || config_clang_tidy.unwrap_or(false),
             clang_tidy_bin: args
                 .clang_tidy_bin

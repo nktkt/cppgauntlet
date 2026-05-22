@@ -48,6 +48,7 @@ report:
 
 test:
   ctest: false
+  command: null
 
 static_analysis:
   clang_tidy: false
@@ -69,6 +70,7 @@ coverage:
 - `sanitizers.enabled`: `address`, `undefined`, `asan`, `ubsan`, or an empty list
 - `report.path`: explicit JSON report path
 - `test.ctest`: for CMake projects, build and run CTest after compile checks
+- `test.command`: custom shell command to run after compile and analyzer checks
 - `static_analysis.clang_tidy`: run `clang-tidy` after compile checks
 - `static_analysis.clang_tidy_bin`: `clang-tidy` executable
 - `static_analysis.clang_tidy_checks`: optional checks expression passed as `--checks=<value>`

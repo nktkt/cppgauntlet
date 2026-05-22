@@ -194,11 +194,11 @@ Exit criteria:
 ## Near-Term Priorities
 
 1. Extend coverage to raw `compile_commands.json` workflows.
-2. Add custom test command support for non-CTest projects.
-3. Add CI-friendly summary controls for warnings, coverage, and analyzer findings.
-4. Add baseline support to distinguish new issues from existing debt.
-5. Add Markdown and HTML report outputs.
-6. Create contribution and issue templates before the first public release milestone.
+2. Add CI-friendly summary controls for warnings, coverage, and analyzer findings.
+3. Add baseline support to distinguish new issues from existing debt.
+4. Add Markdown and HTML report outputs.
+5. Create contribution and issue templates before the first public release milestone.
+6. Add release packaging metadata and installation docs.
 
 ## Non-Goals
 

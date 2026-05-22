@@ -86,6 +86,7 @@ Current stage names:
 - `run`
 - `sanitize_compile`
 - `sanitize_run`
+- `test_command`
 
 `compile:<source path>` and `clang_tidy:<source path>` are used for project checks created from `compile_commands.json`.
 
