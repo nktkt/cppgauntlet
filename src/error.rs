@@ -11,8 +11,32 @@ pub enum AppError {
     #[error("invalid sanitizer '{0}'. Expected address, undefined, asan, ubsan, or none")]
     InvalidSanitizer(String),
 
+    #[error("{0}")]
+    InvalidStandard(String),
+
+    #[error("configuration file already exists: {0}. Use --force to overwrite it")]
+    ConfigExists(PathBuf),
+
     #[error("failed to create directory {path}: {source}")]
     CreateDir {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+
+    #[error("failed to read configuration {path}: {source}")]
+    ReadConfig {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+
+    #[error("failed to parse configuration {path}: {source}")]
+    ParseConfig {
+        path: PathBuf,
+        source: serde_yml::Error,
+    },
+
+    #[error("failed to write configuration {path}: {source}")]
+    WriteConfig {
         path: PathBuf,
         source: std::io::Error,
     },
@@ -37,4 +61,7 @@ pub enum AppError {
 
     #[error("failed to serialize report: {0}")]
     Json(#[from] serde_json::Error),
+
+    #[error("failed to serialize configuration: {0}")]
+    Yaml(#[from] serde_yml::Error),
 }

@@ -44,6 +44,54 @@ fn missing_compiler_reports_error() {
 }
 
 #[test]
+fn init_writes_default_config() {
+    let temp = tempdir().unwrap();
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .arg("init")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Created cppgauntlet.yaml"));
+
+    let config = fs::read_to_string(temp.path().join("cppgauntlet.yaml")).unwrap();
+    assert!(config.contains("standard: c++20"));
+    assert!(config.contains("compiler: clang++"));
+    assert!(config.contains("artifact_dir:"));
+    assert!(config.contains(".cppgauntlet"));
+}
+
+#[test]
+fn init_refuses_to_overwrite_without_force() {
+    let temp = tempdir().unwrap();
+    fs::write(temp.path().join("cppgauntlet.yaml"), "standard: c++17\n").unwrap();
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .arg("init")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "configuration file already exists",
+        ));
+}
+
+#[test]
+fn init_force_overwrites_existing_config() {
+    let temp = tempdir().unwrap();
+    fs::write(temp.path().join("cppgauntlet.yaml"), "standard: c++17\n").unwrap();
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args(["init", "--force"])
+        .assert()
+        .success();
+
+    let config = fs::read_to_string(temp.path().join("cppgauntlet.yaml")).unwrap();
+    assert!(config.contains("standard: c++20"));
+}
+
+#[test]
 fn check_hello_writes_json_report() {
     if !clang_available() {
         return;
@@ -66,6 +114,98 @@ fn check_hello_writes_json_report() {
     assert_eq!(value["schema_version"], 2);
     assert_eq!(value["status"], "passed");
     assert_eq!(value["target"]["standard"], "c++20");
+}
+
+#[test]
+fn check_uses_default_yaml_config() {
+    if !clang_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "hello.cpp");
+    fs::write(
+        temp.path().join("cppgauntlet.yaml"),
+        r#"standard: c++17
+compiler: clang++
+artifact_dir: configured-artifacts
+timeout_seconds: 5
+sanitizers:
+  enabled: []
+"#,
+    )
+    .unwrap();
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args(["check", "hello.cpp"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Standard: c++17"));
+
+    let value = read_report_at(
+        temp.path()
+            .join("configured-artifacts/cppgauntlet-report.json"),
+    );
+    assert_eq!(value["target"]["standard"], "c++17");
+    assert_eq!(stage(&value, "sanitize_compile")["status"], "skipped");
+}
+
+#[test]
+fn check_cli_flags_override_config_file() {
+    if !clang_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "hello.cpp");
+    fs::write(
+        temp.path().join("custom.yaml"),
+        r#"standard: c++17
+artifact_dir: config-artifacts
+sanitizers:
+  enabled: []
+"#,
+    )
+    .unwrap();
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args([
+            "check",
+            "hello.cpp",
+            "--config",
+            "custom.yaml",
+            "--standard",
+            "c++23",
+            "--artifact-dir",
+            "cli-artifacts",
+            "--sanitizers",
+            "none",
+        ])
+        .assert()
+        .success();
+
+    let value = read_report_at(temp.path().join("cli-artifacts/cppgauntlet-report.json"));
+    assert_eq!(value["target"]["standard"], "c++23");
+    assert!(!temp
+        .path()
+        .join("config-artifacts/cppgauntlet-report.json")
+        .exists());
+}
+
+#[test]
+fn invalid_config_standard_reports_error() {
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "hello.cpp");
+    fs::write(temp.path().join("cppgauntlet.yaml"), "standard: c++14\n").unwrap();
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args(["check", "hello.cpp"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("unsupported C++ standard"));
 }
 
 #[test]
@@ -225,8 +365,11 @@ fn copy_fixture(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
 }
 
 fn read_report(dir: &std::path::Path) -> serde_json::Value {
-    let report_path = dir.join(".cppgauntlet/cppgauntlet-report.json");
-    let report = fs::read_to_string(report_path).unwrap();
+    read_report_at(dir.join(".cppgauntlet/cppgauntlet-report.json"))
+}
+
+fn read_report_at(path: impl AsRef<std::path::Path>) -> serde_json::Value {
+    let report = fs::read_to_string(path).unwrap();
     serde_json::from_str(&report).unwrap()
 }
 

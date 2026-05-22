@@ -1,5 +1,6 @@
 mod check;
 mod cli;
+mod config;
 mod error;
 mod report;
 mod runner;
@@ -44,6 +45,25 @@ fn run(cli: Cli) -> Result<bool, AppError> {
             }
 
             Ok(success)
+        }
+        Commands::Init(args) => {
+            let path = config::init(args)?;
+
+            match cli.format {
+                OutputFormat::Text => {
+                    println!("Created {}", path.display());
+                }
+                OutputFormat::Json => {
+                    println!(
+                        "{}",
+                        serde_json::json!({
+                            "created": path,
+                        })
+                    );
+                }
+            }
+
+            Ok(true)
         }
     }
 }

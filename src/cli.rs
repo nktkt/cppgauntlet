@@ -27,6 +27,9 @@ pub enum OutputFormat {
 pub enum Commands {
     /// Compile and run checks for a single C++ source file.
     Check(CheckArgs),
+
+    /// Write a starter cppgauntlet.yaml configuration file.
+    Init(InitArgs),
 }
 
 #[derive(Debug, Args)]
@@ -34,29 +37,44 @@ pub struct CheckArgs {
     /// C++ source file to check.
     pub file: PathBuf,
 
+    /// Configuration file to load. Defaults to cppgauntlet.yaml when it exists.
+    #[arg(long)]
+    pub config: Option<PathBuf>,
+
     /// C++ language standard to pass to the compiler.
-    #[arg(long, default_value = "c++20", value_parser = parse_standard)]
-    pub standard: CppStandard,
+    #[arg(long, value_parser = parse_standard)]
+    pub standard: Option<CppStandard>,
 
     /// C++ compiler executable.
-    #[arg(long, default_value = "clang++")]
-    pub compiler: String,
+    #[arg(long)]
+    pub compiler: Option<String>,
 
     /// Comma-separated sanitizer list: address, undefined, asan, ubsan, or none.
-    #[arg(long, default_value = "address,undefined")]
-    pub sanitizers: String,
+    #[arg(long)]
+    pub sanitizers: Option<String>,
 
     /// Root directory for generated artifacts and reports.
-    #[arg(long, default_value = ".cppgauntlet")]
-    pub artifact_dir: PathBuf,
+    #[arg(long)]
+    pub artifact_dir: Option<PathBuf>,
 
     /// Optional report path. Defaults to <artifact-dir>/cppgauntlet-report.json.
     #[arg(long)]
     pub report: Option<PathBuf>,
 
     /// Per-command timeout in seconds.
-    #[arg(long, default_value_t = 30)]
-    pub timeout_seconds: u64,
+    #[arg(long)]
+    pub timeout_seconds: Option<u64>,
+}
+
+#[derive(Debug, Args)]
+pub struct InitArgs {
+    /// Configuration file path to create.
+    #[arg(long, default_value = "cppgauntlet.yaml")]
+    pub path: PathBuf,
+
+    /// Overwrite an existing configuration file.
+    #[arg(long)]
+    pub force: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -67,6 +85,17 @@ pub enum CppStandard {
 }
 
 impl CppStandard {
+    pub fn parse(value: &str) -> Result<Self, String> {
+        match value {
+            "c++17" | "17" => Ok(Self::Cxx17),
+            "c++20" | "20" => Ok(Self::Cxx20),
+            "c++23" | "23" => Ok(Self::Cxx23),
+            _ => Err(format!(
+                "unsupported C++ standard '{value}'. Expected c++17, c++20, or c++23"
+            )),
+        }
+    }
+
     pub fn as_flag(self) -> &'static str {
         match self {
             Self::Cxx17 => "-std=c++17",
@@ -85,12 +114,5 @@ impl CppStandard {
 }
 
 fn parse_standard(value: &str) -> Result<CppStandard, String> {
-    match value {
-        "c++17" | "17" => Ok(CppStandard::Cxx17),
-        "c++20" | "20" => Ok(CppStandard::Cxx20),
-        "c++23" | "23" => Ok(CppStandard::Cxx23),
-        _ => Err(format!(
-            "unsupported C++ standard '{value}'. Expected c++17, c++20, or c++23"
-        )),
-    }
+    CppStandard::parse(value)
 }

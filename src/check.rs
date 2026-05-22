@@ -1,8 +1,9 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use crate::cli::CheckArgs;
+use crate::cli::{CheckArgs, CppStandard};
+use crate::config;
 use crate::error::AppError;
 use crate::report::{
     stage_from_result, Report, ReportStatus, StageReport, StageStatus, Summary, TargetInfo,
@@ -33,6 +34,7 @@ impl Sanitizer {
 }
 
 pub fn run(args: CheckArgs) -> Result<Report, AppError> {
+    let args = ResolvedCheckArgs::from_cli(args)?;
     validate_target(&args.file)?;
 
     let source = args.file.canonicalize().unwrap_or(args.file.clone());
@@ -128,6 +130,51 @@ pub fn run(args: CheckArgs) -> Result<Report, AppError> {
 
     write_report(&report)?;
     Ok(report)
+}
+
+#[derive(Debug)]
+struct ResolvedCheckArgs {
+    file: PathBuf,
+    standard: CppStandard,
+    compiler: String,
+    sanitizers: String,
+    artifact_dir: PathBuf,
+    report: Option<PathBuf>,
+    timeout_seconds: u64,
+}
+
+impl ResolvedCheckArgs {
+    fn from_cli(args: CheckArgs) -> Result<Self, AppError> {
+        let config = config::load_config(args.config.as_deref())?;
+        let config_standard = config.standard()?;
+        let config_sanitizers = config.sanitizers_csv();
+        let config_report = config.report_path();
+
+        Ok(Self {
+            file: args.file,
+            standard: args
+                .standard
+                .or(config_standard)
+                .unwrap_or(CppStandard::Cxx20),
+            compiler: args
+                .compiler
+                .or(config.compiler)
+                .unwrap_or_else(|| "clang++".to_string()),
+            sanitizers: args
+                .sanitizers
+                .or(config_sanitizers)
+                .unwrap_or_else(|| "address,undefined".to_string()),
+            artifact_dir: args
+                .artifact_dir
+                .or(config.artifact_dir)
+                .unwrap_or_else(|| PathBuf::from(".cppgauntlet")),
+            report: args.report.or(config_report),
+            timeout_seconds: args
+                .timeout_seconds
+                .or(config.timeout_seconds)
+                .unwrap_or(30),
+        })
+    }
 }
 
 fn validate_target(path: &Path) -> Result<(), AppError> {
