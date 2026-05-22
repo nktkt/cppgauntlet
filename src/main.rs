@@ -45,6 +45,9 @@ fn run(cli: Cli) -> Result<bool, AppError> {
                 OutputFormat::Json => {
                     println!("{}", serde_json::to_string_pretty(&report)?);
                 }
+                OutputFormat::Markdown => {
+                    println!("{}", report.render_markdown());
+                }
             }
 
             Ok(success)
@@ -59,6 +62,9 @@ fn run(cli: Cli) -> Result<bool, AppError> {
                 }
                 OutputFormat::Json => {
                     println!("{}", serde_json::to_string_pretty(&report)?);
+                }
+                OutputFormat::Markdown => {
+                    println!("{}", report.render_markdown());
                 }
             }
 
@@ -78,6 +84,9 @@ fn run(cli: Cli) -> Result<bool, AppError> {
                             "created": path,
                         })
                     );
+                }
+                OutputFormat::Markdown => {
+                    println!("# CppGauntlet Init\n\nCreated `{}`.", path.display());
                 }
             }
 

@@ -186,6 +186,91 @@ fn check_hello_writes_json_report() {
 }
 
 #[test]
+fn check_markdown_format_outputs_report() {
+    if !clang_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "hello.cpp");
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args([
+            "--format",
+            "markdown",
+            "check",
+            "hello.cpp",
+            "--sanitizers",
+            "none",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("# CppGauntlet Check Report"))
+        .stdout(predicate::str::contains("| Status | passed |"))
+        .stdout(predicate::str::contains("No diagnostics recorded."));
+}
+
+#[test]
+fn check_can_write_markdown_report_file() {
+    if !clang_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "warning.cpp");
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args([
+            "check",
+            "warning.cpp",
+            "--sanitizers",
+            "none",
+            "--markdown-report",
+            "report.md",
+        ])
+        .assert()
+        .success();
+
+    let markdown = fs::read_to_string(temp.path().join("report.md")).unwrap();
+    assert!(markdown.contains("# CppGauntlet Check Report"));
+    assert!(markdown.contains("| compile | passed |"));
+    assert!(markdown.contains("unused variable"));
+
+    let value = read_report(temp.path());
+    assert_eq!(value["markdown_report_path"], "report.md");
+}
+
+#[test]
+fn check_config_can_write_markdown_report_file() {
+    if !clang_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "hello.cpp");
+    fs::write(
+        temp.path().join("cppgauntlet.yaml"),
+        r#"sanitizers:
+  enabled: []
+report:
+  markdown_path: configured-report.md
+"#,
+    )
+    .unwrap();
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args(["check", "hello.cpp"])
+        .assert()
+        .success();
+
+    let markdown = fs::read_to_string(temp.path().join("configured-report.md")).unwrap();
+    assert!(markdown.contains("# CppGauntlet Check Report"));
+}
+
+#[test]
 #[cfg(unix)]
 fn check_source_runs_clang_tidy() {
     if !clang_available() {

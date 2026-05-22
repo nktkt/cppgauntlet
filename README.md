@@ -46,6 +46,8 @@ cargo run -- check ./project --test-command "make test"
 cargo run -- check main.cpp --max-warnings 0
 cargo run -- check main.cpp --coverage --min-line-coverage 80
 cargo run -- check main.cpp --baseline .cppgauntlet/baseline.json --fail-on-new-diagnostics
+cargo run -- --format markdown check main.cpp
+cargo run -- check main.cpp --markdown-report .cppgauntlet/cppgauntlet-report.md
 cargo run -- init
 cargo run -- doctor
 cargo run -- --format json check main.cpp
@@ -76,6 +78,7 @@ See [docs/COVERAGE.md](docs/COVERAGE.md) for source-based coverage with LLVM too
 See [docs/TESTING.md](docs/TESTING.md) for CTest and custom test commands.
 See [docs/POLICY.md](docs/POLICY.md) for CI policy gates.
 See [docs/BASELINE.md](docs/BASELINE.md) for diagnostic baselines.
+See [docs/MARKDOWN_REPORTS.md](docs/MARKDOWN_REPORTS.md) for Markdown reports.
 
 ## MVP Scope
 
@@ -119,6 +122,7 @@ sanitizers:
 
 report:
   path: .cppgauntlet/cppgauntlet-report.json
+  markdown_path: null
 
 test:
   ctest: false
@@ -144,7 +148,7 @@ policy:
 
 ## Project Status
 
-CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, custom test commands, optional `clang-tidy` analysis, single-file and CMake/CTest LLVM coverage, diagnostic baselines, CI policy gates, environment diagnostics, and JSON reports.
+CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, custom test commands, optional `clang-tidy` analysis, single-file and CMake/CTest LLVM coverage, diagnostic baselines, CI policy gates, environment diagnostics, JSON reports, and Markdown reports.
 
 ## License
 

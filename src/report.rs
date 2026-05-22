@@ -11,6 +11,8 @@ pub struct Report {
     pub summary: Summary,
     pub stages: Vec<StageReport>,
     pub report_path: PathBuf,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub markdown_report_path: Option<PathBuf>,
 }
 
 impl Report {
@@ -47,6 +49,137 @@ impl Report {
                 stage.warnings,
                 stage.errors
             ));
+        }
+
+        lines.join("\n")
+    }
+
+    pub fn render_markdown(&self) -> String {
+        let mut lines = vec![
+            "# CppGauntlet Check Report".to_string(),
+            String::new(),
+            "## Target".to_string(),
+            String::new(),
+            "| Field | Value |".to_string(),
+            "| --- | --- |".to_string(),
+            format!(
+                "| Path | `{}` |",
+                markdown_cell(&self.target.path.display().to_string())
+            ),
+            format!("| Status | {} |", self.status.as_str()),
+            format!("| Standard | {} |", markdown_cell(&self.target.standard)),
+            format!("| Compiler | `{}` |", markdown_cell(&self.target.compiler)),
+            format!(
+                "| JSON report | `{}` |",
+                markdown_cell(&self.report_path.display().to_string())
+            ),
+        ];
+
+        if let Some(path) = &self.markdown_report_path {
+            lines.push(format!(
+                "| Markdown report | `{}` |",
+                markdown_cell(&path.display().to_string())
+            ));
+        }
+
+        lines.extend([
+            String::new(),
+            "## Summary".to_string(),
+            String::new(),
+            "| Metric | Value |".to_string(),
+            "| --- | ---: |".to_string(),
+            format!("| Warnings | {} |", self.summary.warnings),
+            format!("| Errors | {} |", self.summary.errors),
+            format!("| Diagnostics | {} |", self.summary.diagnostics),
+            format!("| Failed stages | {} |", self.summary.failed_stages),
+            format!("| Timed out stages | {} |", self.summary.timed_out_stages),
+        ]);
+
+        if let Some(coverage) = &self.summary.coverage {
+            lines.extend([
+                format!("| Line coverage | {:.2}% |", coverage.lines.percent),
+                format!("| Function coverage | {:.2}% |", coverage.functions.percent),
+                format!("| Region coverage | {:.2}% |", coverage.regions.percent),
+            ]);
+        }
+
+        if let Some(baseline) = &self.summary.baseline {
+            lines.extend([
+                format!(
+                    "| Baseline unique diagnostics | {} |",
+                    baseline.baseline_unique_diagnostics
+                ),
+                format!(
+                    "| Current unique diagnostics | {} |",
+                    baseline.current_unique_diagnostics
+                ),
+                format!(
+                    "| New diagnostics | {} |",
+                    baseline.new_diagnostic_occurrences
+                ),
+                format!(
+                    "| Resolved diagnostics | {} |",
+                    baseline.resolved_unique_diagnostics
+                ),
+            ]);
+        }
+
+        lines.extend([
+            String::new(),
+            "## Stages".to_string(),
+            String::new(),
+            "| Stage | Status | Exit | Warnings | Errors | Timed out |".to_string(),
+            "| --- | --- | ---: | ---: | ---: | --- |".to_string(),
+        ]);
+
+        for stage in &self.stages {
+            let exit = stage
+                .exit_code
+                .map(|code| code.to_string())
+                .unwrap_or_else(|| "n/a".to_string());
+            lines.push(format!(
+                "| {} | {} | {} | {} | {} | {} |",
+                markdown_cell(&stage.name),
+                stage.status.as_str(),
+                exit,
+                stage.warnings,
+                stage.errors,
+                stage.timed_out
+            ));
+        }
+
+        lines.extend([String::new(), "## Diagnostics".to_string()]);
+        let diagnostics = self
+            .stages
+            .iter()
+            .flat_map(|stage| {
+                stage
+                    .diagnostics
+                    .iter()
+                    .map(move |diagnostic| (stage.name.as_str(), diagnostic))
+            })
+            .collect::<Vec<_>>();
+
+        if diagnostics.is_empty() {
+            lines.extend([String::new(), "No diagnostics recorded.".to_string()]);
+        } else {
+            for (stage_name, diagnostic) in diagnostics {
+                let baseline = diagnostic
+                    .baseline_status
+                    .map(|status| format!(" / {}", status.as_str()))
+                    .unwrap_or_default();
+                lines.extend([
+                    String::new(),
+                    format!(
+                        "- **{}{}** in `{}`: {}",
+                        diagnostic.severity.as_str(),
+                        baseline,
+                        markdown_cell(stage_name),
+                        markdown_cell(&diagnostic.message)
+                    ),
+                    format!("  - Raw: `{}`", markdown_cell(&diagnostic.raw)),
+                ]);
+            }
         }
 
         lines.join("\n")
@@ -186,11 +319,29 @@ pub enum DiagnosticSeverity {
     Error,
 }
 
+impl DiagnosticSeverity {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Warning => "warning",
+            Self::Error => "error",
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DiagnosticBaselineStatus {
     Existing,
     New,
+}
+
+impl DiagnosticBaselineStatus {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Existing => "existing",
+            Self::New => "new",
+        }
+    }
 }
 
 pub fn parse_diagnostics(stderr: &str) -> Vec<Diagnostic> {
@@ -276,4 +427,8 @@ fn baseline_line(summary: &Summary) -> String {
             )
         })
         .unwrap_or_else(|| "Baseline: n/a".to_string())
+}
+
+fn markdown_cell(value: &str) -> String {
+    value.replace('|', "\\|").replace('\n', " ")
 }

@@ -45,6 +45,7 @@ sanitizers:
 
 report:
   path: .cppgauntlet/cppgauntlet-report.json
+  markdown_path: null
 
 test:
   ctest: false
@@ -77,6 +78,7 @@ policy:
 - `timeout_seconds`: per-command timeout
 - `sanitizers.enabled`: `address`, `undefined`, `asan`, `ubsan`, or an empty list
 - `report.path`: explicit JSON report path
+- `report.markdown_path`: optional Markdown report path
 - `test.ctest`: for CMake projects, build and run CTest after compile checks
 - `test.command`: custom shell command to run after compile and analyzer checks
 - `static_analysis.clang_tidy`: run `clang-tidy` after compile checks
@@ -90,4 +92,4 @@ policy:
 - `policy.min_line_coverage`: fail the report when line coverage is below this percentage
 - `policy.fail_on_new_diagnostics`: fail the report when diagnostics are not present in the baseline report
 
-If `report.path` is omitted, CppGauntlet writes to `<artifact_dir>/cppgauntlet-report.json`.
+If `report.path` is omitted, CppGauntlet writes to `<artifact_dir>/cppgauntlet-report.json`. Markdown reports are written only when `report.markdown_path` or `--markdown-report` is set.

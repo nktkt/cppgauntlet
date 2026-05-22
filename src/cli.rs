@@ -21,6 +21,7 @@ pub struct Cli {
 pub enum OutputFormat {
     Text,
     Json,
+    Markdown,
 }
 
 #[derive(Debug, Subcommand)]
@@ -64,6 +65,10 @@ pub struct CheckArgs {
     /// Optional report path. Defaults to <artifact-dir>/cppgauntlet-report.json.
     #[arg(long)]
     pub report: Option<PathBuf>,
+
+    /// Optional Markdown report path.
+    #[arg(long)]
+    pub markdown_report: Option<PathBuf>,
 
     /// Per-command timeout in seconds.
     #[arg(long)]

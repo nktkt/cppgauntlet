@@ -57,6 +57,7 @@ impl ProjectConfig {
             }),
             report: Some(ReportConfig {
                 path: Some(PathBuf::from(".cppgauntlet/cppgauntlet-report.json")),
+                markdown_path: None,
             }),
             test: Some(TestConfig {
                 ctest: Some(false),
@@ -101,6 +102,12 @@ impl ProjectConfig {
 
     pub fn report_path(&self) -> Option<PathBuf> {
         self.report.as_ref().and_then(|report| report.path.clone())
+    }
+
+    pub fn markdown_report_path(&self) -> Option<PathBuf> {
+        self.report
+            .as_ref()
+            .and_then(|report| report.markdown_path.clone())
     }
 
     pub fn ctest_enabled(&self) -> Option<bool> {
@@ -180,6 +187,9 @@ pub struct SanitizerConfig {
 pub struct ReportConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub path: Option<PathBuf>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub markdown_path: Option<PathBuf>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]

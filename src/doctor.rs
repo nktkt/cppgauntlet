@@ -65,6 +65,53 @@ impl DoctorReport {
 
         lines.join("\n")
     }
+
+    pub fn render_markdown(&self) -> String {
+        let mut lines = vec![
+            "# CppGauntlet Doctor".to_string(),
+            String::new(),
+            "## Summary".to_string(),
+            String::new(),
+            "| Field | Value |".to_string(),
+            "| --- | --- |".to_string(),
+            format!("| Status | {} |", self.status.as_str()),
+            format!(
+                "| Required missing | {} |",
+                if self.required_missing.is_empty() {
+                    "none".to_string()
+                } else {
+                    self.required_missing.join(", ")
+                }
+            ),
+            String::new(),
+            "## Tools".to_string(),
+            String::new(),
+            "| Tool | Required | Available | Detail |".to_string(),
+            "| --- | --- | --- | --- |".to_string(),
+        ];
+
+        for tool in &self.tools {
+            let detail = tool
+                .version
+                .as_deref()
+                .or(tool.error.as_deref())
+                .unwrap_or("no details");
+
+            lines.push(format!(
+                "| {} | {} | {} | {} |",
+                markdown_cell(&tool.name),
+                tool.required,
+                tool.available,
+                markdown_cell(detail)
+            ));
+        }
+
+        lines.join("\n")
+    }
+}
+
+fn markdown_cell(value: &str) -> String {
+    value.replace('|', "\\|").replace('\n', " ")
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]

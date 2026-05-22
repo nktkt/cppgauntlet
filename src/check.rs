@@ -64,10 +64,7 @@ fn run_source_file(args: ResolvedCheckArgs, source: PathBuf) -> Result<Report, A
     create_dir(&artifact_root)?;
     create_dir(&build_dir)?;
 
-    let report_path = args
-        .report
-        .clone()
-        .unwrap_or_else(|| artifact_root.join("cppgauntlet-report.json"));
+    let report_paths = resolve_report_paths(&args, &artifact_root);
     let sanitizers = parse_sanitizers(&args.sanitizers)?;
     let timeout = Duration::from_secs(args.timeout_seconds);
     let executable = build_dir.join(executable_name(&source, None));
@@ -178,10 +175,11 @@ fn run_source_file(args: ResolvedCheckArgs, source: PathBuf) -> Result<Report, A
         status,
         summary,
         stages,
-        report_path,
+        report_path: report_paths.json,
+        markdown_report_path: report_paths.markdown,
     };
 
-    write_report(&report)?;
+    write_report_outputs(&report)?;
     Ok(report)
 }
 
@@ -200,10 +198,7 @@ fn run_compilation_database_with_stages(
     let artifact_root = args.artifact_dir.clone();
     create_dir(&artifact_root)?;
 
-    let report_path = args
-        .report
-        .clone()
-        .unwrap_or_else(|| artifact_root.join("cppgauntlet-report.json"));
+    let report_paths = resolve_report_paths(&args, &artifact_root);
     let timeout = Duration::from_secs(args.timeout_seconds);
     append_compilation_database_compile_stages(&mut stages, &database, timeout)?;
     append_clang_tidy_stages(&mut stages, &database, &args, timeout);
@@ -217,7 +212,7 @@ fn run_compilation_database_with_stages(
         "from compilation database".to_string(),
         "from compilation database".to_string(),
         stages,
-        report_path,
+        report_paths,
         baseline,
     )
 }
@@ -227,10 +222,7 @@ fn run_cmake_project(args: ResolvedCheckArgs, project_dir: PathBuf) -> Result<Re
     let build_dir = artifact_root.join("cmake-build");
     create_dir(&artifact_root)?;
 
-    let report_path = args
-        .report
-        .clone()
-        .unwrap_or_else(|| artifact_root.join("cppgauntlet-report.json"));
+    let report_paths = resolve_report_paths(&args, &artifact_root);
     let timeout = Duration::from_secs(args.timeout_seconds);
     let cmake_stage = cmake_configure_stage(&project_dir, &build_dir, timeout);
 
@@ -246,7 +238,7 @@ fn run_cmake_project(args: ResolvedCheckArgs, project_dir: PathBuf) -> Result<Re
             "from CMake".to_string(),
             "from CMake".to_string(),
             stages,
-            report_path,
+            report_paths,
             baseline,
         );
     }
@@ -292,10 +284,26 @@ fn run_cmake_project(args: ResolvedCheckArgs, project_dir: PathBuf) -> Result<Re
         "from CMake".to_string(),
         "from CMake".to_string(),
         stages,
-        report_path,
+        report_paths,
         coverage,
         baseline,
     )
+}
+
+#[derive(Debug)]
+struct ReportPaths {
+    json: PathBuf,
+    markdown: Option<PathBuf>,
+}
+
+fn resolve_report_paths(args: &ResolvedCheckArgs, artifact_root: &Path) -> ReportPaths {
+    ReportPaths {
+        json: args
+            .report
+            .clone()
+            .unwrap_or_else(|| artifact_root.join("cppgauntlet-report.json")),
+        markdown: args.markdown_report.clone(),
+    }
 }
 
 fn build_and_write_report(
@@ -303,7 +311,7 @@ fn build_and_write_report(
     standard: String,
     compiler: String,
     stages: Vec<StageReport>,
-    report_path: PathBuf,
+    report_paths: ReportPaths,
     baseline: Option<BaselineSummary>,
 ) -> Result<Report, AppError> {
     build_and_write_report_with_coverage(
@@ -311,7 +319,7 @@ fn build_and_write_report(
         standard,
         compiler,
         stages,
-        report_path,
+        report_paths,
         None,
         baseline,
     )
@@ -322,7 +330,7 @@ fn build_and_write_report_with_coverage(
     standard: String,
     compiler: String,
     stages: Vec<StageReport>,
-    report_path: PathBuf,
+    report_paths: ReportPaths,
     coverage: Option<CoverageSummary>,
     baseline: Option<BaselineSummary>,
 ) -> Result<Report, AppError> {
@@ -347,10 +355,11 @@ fn build_and_write_report_with_coverage(
         status,
         summary,
         stages,
-        report_path,
+        report_path: report_paths.json,
+        markdown_report_path: report_paths.markdown,
     };
 
-    write_report(&report)?;
+    write_report_outputs(&report)?;
     Ok(report)
 }
 
@@ -730,6 +739,7 @@ struct ResolvedCheckArgs {
     sanitizers: String,
     artifact_dir: PathBuf,
     report: Option<PathBuf>,
+    markdown_report: Option<PathBuf>,
     timeout_seconds: u64,
     ctest: bool,
     test_command: Option<String>,
@@ -751,6 +761,7 @@ impl ResolvedCheckArgs {
         let config_standard = config.standard()?;
         let config_sanitizers = config.sanitizers_csv();
         let config_report = config.report_path();
+        let config_markdown_report = config.markdown_report_path();
         let config_ctest = config.ctest_enabled();
         let config_test_command = config.test_command();
         let config_clang_tidy = config.clang_tidy_enabled();
@@ -796,6 +807,7 @@ impl ResolvedCheckArgs {
                 .or(config.artifact_dir)
                 .unwrap_or_else(|| PathBuf::from(".cppgauntlet")),
             report: args.report.or(config_report),
+            markdown_report: args.markdown_report.or(config_markdown_report),
             timeout_seconds: args
                 .timeout_seconds
                 .or(config.timeout_seconds)
@@ -1478,6 +1490,22 @@ fn write_report(report: &Report) -> Result<(), AppError> {
         path: report.report_path.clone(),
         source,
     })
+}
+
+fn write_report_outputs(report: &Report) -> Result<(), AppError> {
+    write_report(report)?;
+
+    if let Some(path) = &report.markdown_report_path {
+        if let Some(parent) = path.parent() {
+            create_dir(parent)?;
+        }
+        fs::write(path, report.render_markdown()).map_err(|source| AppError::WriteReport {
+            path: path.clone(),
+            source,
+        })?;
+    }
+
+    Ok(())
 }
 
 fn executable_name(source: &Path, sanitizers: Option<&[Sanitizer]>) -> String {
