@@ -28,6 +28,9 @@ pub enum Commands {
     /// Compile and run checks for a single C++ source file.
     Check(CheckArgs),
 
+    /// Inspect external tools needed by CppGauntlet workflows.
+    Doctor(DoctorArgs),
+
     /// Write a starter cppgauntlet.yaml configuration file.
     Init(InitArgs),
 }
@@ -75,6 +78,21 @@ pub struct InitArgs {
     /// Overwrite an existing configuration file.
     #[arg(long)]
     pub force: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct DoctorArgs {
+    /// Required tool to check. Repeat to replace the default required tool set.
+    #[arg(long = "required-tool")]
+    pub required_tools: Vec<String>,
+
+    /// Optional tool to check. Repeat to replace the default optional tool set.
+    #[arg(long = "optional-tool")]
+    pub optional_tools: Vec<String>,
+
+    /// Per-tool timeout in seconds.
+    #[arg(long, default_value_t = 5)]
+    pub timeout_seconds: u64,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

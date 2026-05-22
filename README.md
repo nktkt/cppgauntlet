@@ -36,6 +36,7 @@ The first implementation supports a single-file check workflow:
 ```bash
 cargo run -- check main.cpp
 cargo run -- init
+cargo run -- doctor
 cargo run -- --format json check main.cpp
 cargo run -- check main.cpp --standard c++23 --sanitizers address,undefined
 cargo run -- check main.cpp --config cppgauntlet.yaml
@@ -55,6 +56,7 @@ The current JSON report schema is version `2`. Each stage records:
 
 See [docs/REPORT_SCHEMA.md](docs/REPORT_SCHEMA.md) for the current report contract.
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the current configuration file format.
+See [docs/DOCTOR.md](docs/DOCTOR.md) for environment diagnostics.
 
 ## MVP Scope
 

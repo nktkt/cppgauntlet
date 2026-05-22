@@ -92,6 +92,75 @@ fn init_force_overwrites_existing_config() {
 }
 
 #[test]
+#[cfg(unix)]
+fn doctor_reports_custom_required_tool_available() {
+    let temp = tempdir().unwrap();
+    make_fake_tool(temp.path(), "fake-clang", "fake-clang 1.2.3");
+    make_fake_tool(temp.path(), "fake-cmake", "fake-cmake 4.5.6");
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.env("PATH", path_with_prefix(temp.path()))
+        .args([
+            "doctor",
+            "--required-tool",
+            "fake-clang",
+            "--optional-tool",
+            "fake-cmake",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Status: PASSED"))
+        .stdout(predicate::str::contains("fake-clang: found"))
+        .stdout(predicate::str::contains("fake-cmake: found"));
+}
+
+#[test]
+fn doctor_fails_when_required_tool_is_missing() {
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+
+    cmd.args([
+        "doctor",
+        "--required-tool",
+        "cppgauntlet-missing-required-tool",
+    ])
+    .assert()
+    .failure()
+    .stdout(predicate::str::contains("Status: FAILED"))
+    .stdout(predicate::str::contains(
+        "Required missing: cppgauntlet-missing-required-tool",
+    ));
+}
+
+#[test]
+#[cfg(unix)]
+fn doctor_json_reports_tool_availability() {
+    let temp = tempdir().unwrap();
+    make_fake_tool(temp.path(), "fake-clang-json", "fake-clang-json 7.8.9");
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    let assert = cmd
+        .env("PATH", path_with_prefix(temp.path()))
+        .args([
+            "--format",
+            "json",
+            "doctor",
+            "--required-tool",
+            "fake-clang-json",
+        ])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
+    let value: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+
+    assert_eq!(value["schema_version"], 1);
+    assert_eq!(value["status"], "passed");
+    assert_eq!(value["tools"][0]["name"], "fake-clang-json");
+    assert_eq!(value["tools"][0]["available"], true);
+    assert_eq!(value["tools"][0]["version"], "fake-clang-json 7.8.9");
+}
+
+#[test]
 fn check_hello_writes_json_report() {
     if !clang_available() {
         return;
@@ -380,4 +449,23 @@ fn stage<'a>(value: &'a serde_json::Value, name: &str) -> &'a serde_json::Value 
         .iter()
         .find(|stage| stage["name"] == name)
         .unwrap()
+}
+
+#[cfg(unix)]
+fn make_fake_tool(dir: &std::path::Path, name: &str, version: &str) {
+    use std::os::unix::fs::PermissionsExt;
+
+    let path = dir.join(name);
+    fs::write(&path, format!("#!/bin/sh\necho '{version}'\n")).unwrap();
+
+    let mut permissions = fs::metadata(&path).unwrap().permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(path, permissions).unwrap();
+}
+
+#[cfg(unix)]
+fn path_with_prefix(dir: &std::path::Path) -> std::ffi::OsString {
+    let current_path = std::env::var_os("PATH").unwrap_or_default();
+    let paths = std::iter::once(dir.to_path_buf()).chain(std::env::split_paths(&current_path));
+    std::env::join_paths(paths).unwrap()
 }

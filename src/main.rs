@@ -1,6 +1,7 @@
 mod check;
 mod cli;
 mod config;
+mod doctor;
 mod error;
 mod report;
 mod runner;
@@ -33,6 +34,21 @@ fn run(cli: Cli) -> Result<bool, AppError> {
     match cli.command {
         Commands::Check(args) => {
             let report = check::run(args)?;
+            let success = report.is_success();
+
+            match cli.format {
+                OutputFormat::Text => {
+                    println!("{}", report.render_text());
+                }
+                OutputFormat::Json => {
+                    println!("{}", serde_json::to_string_pretty(&report)?);
+                }
+            }
+
+            Ok(success)
+        }
+        Commands::Doctor(args) => {
+            let report = doctor::run(args)?;
             let success = report.is_success();
 
             match cli.format {
