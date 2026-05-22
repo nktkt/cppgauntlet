@@ -1,0 +1,19 @@
+[package]
+name = "cppgauntlet"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.76"
+description = "A Rust-powered C++ verification gauntlet"
+repository = "https://github.com/nktkt/cppgauntlet"
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+wait-timeout = "0.2"
+
+[dev-dependencies]
+assert_cmd = "2.0"
+predicates = "3.1"
+tempfile = "3.10"

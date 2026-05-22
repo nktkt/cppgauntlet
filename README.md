@@ -29,6 +29,18 @@ cppgauntlet coverage ./project
 cppgauntlet report ./project --format json
 ```
 
+## Current CLI
+
+The first implementation supports a single-file check workflow:
+
+```bash
+cargo run -- check main.cpp
+cargo run -- --format json check main.cpp
+cargo run -- check main.cpp --standard c++23 --sanitizers address,undefined
+```
+
+Generated artifacts are written to `.cppgauntlet/` by default, including `cppgauntlet-report.json`.
+
 ## MVP Scope
 
 The first version will focus on a small, useful workflow:
@@ -81,7 +93,7 @@ report:
 
 ## Project Status
 
-CppGauntlet is at the specification and scaffolding stage. The implementation will be written in Rust.
+CppGauntlet is in early implementation. The repository currently includes the Rust CLI skeleton and the first single-file `check` workflow.
 
 ## License
 
