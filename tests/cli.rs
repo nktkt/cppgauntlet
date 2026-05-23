@@ -384,6 +384,10 @@ fn release_packaging_metadata_is_documented() {
     assert!(release.contains("cargo package --no-verify"));
     assert!(release.contains("bash scripts/verify-report-schema-compat.sh"));
     assert!(release.contains("bash scripts/generate-release-sbom.sh"));
+    assert!(release.contains("bash scripts/smoke-release-archive.sh"));
+    assert!(release.contains("Archive Smoke Test"));
+    assert!(release.contains("cppgauntlet --version"));
+    assert!(release.contains("cppgauntlet --help"));
     assert!(release.contains("cppgauntlet-<version>-<platform>-<arch>.cdx.json"));
     assert!(release.contains(".github/workflows/release.yml"));
     assert!(release.contains("cppgauntlet-<version>-<platform>-<arch>.tar.gz"));
@@ -417,6 +421,10 @@ fn release_build_workflow_is_documented() {
     assert!(workflow.contains("Verify report schema compatibility"));
     assert!(workflow.contains("bash scripts/verify-report-schema-compat.sh"));
     assert!(workflow.contains("cargo build --release --locked"));
+    assert!(workflow.contains("Smoke test release archive"));
+    assert!(workflow.contains("bash scripts/smoke-release-archive.sh"));
+    assert!(workflow.contains("steps.package.outputs.archive"));
+    assert!(workflow.contains("steps.package.outputs.checksum"));
     assert!(workflow.contains("Generate release SBOM"));
     assert!(workflow.contains("bash scripts/generate-release-sbom.sh"));
     assert!(workflow.contains("steps.sbom.outputs.sbom"));
@@ -442,6 +450,7 @@ fn release_build_workflow_is_documented() {
 
     let readme = fs::read_to_string("README.md").unwrap();
     assert!(readme.contains("schema compatibility tests and release gates"));
+    assert!(readme.contains("release archive smoke tests"));
     assert!(readme.contains("CycloneDX release SBOMs"));
     assert!(readme.contains("signed release artifact attestations"));
     assert!(readme.contains("generated GitHub release notes with a repository policy"));
@@ -475,6 +484,85 @@ fn release_build_workflow_is_documented() {
     assert!(sbom_script.contains("cargo metadata --locked --format-version 1"));
     assert!(sbom_script.contains("bomFormat: \"CycloneDX\""));
     assert!(sbom_script.contains("specVersion: \"1.5\""));
+
+    let smoke_script = fs::read_to_string("scripts/smoke-release-archive.sh").unwrap();
+    assert!(smoke_script.contains("shasum -a 256 -c"));
+    assert!(smoke_script.contains("tar -tzf"));
+    assert!(smoke_script.contains("--version"));
+    assert!(smoke_script.contains("--help"));
+    assert!(smoke_script.contains("Release archive smoke test passed"));
+}
+
+#[cfg(unix)]
+#[test]
+fn release_archive_smoke_script_accepts_packaged_binary() {
+    let temp = tempdir().unwrap();
+    let package_name = "cppgauntlet-v0.0.0-linux-x86_64";
+    let archive_name = format!("{package_name}.tar.gz");
+    let checksum_name = format!("{archive_name}.sha256");
+    let staging = temp.path().join(package_name);
+    fs::create_dir(&staging).unwrap();
+
+    make_fake_script(
+        &staging,
+        "cppgauntlet",
+        r#"case "$1" in
+  --version)
+    echo "cppgauntlet 0.1.0"
+    ;;
+  --help)
+    echo "Put C++ code through a practical verification gauntlet."
+    ;;
+  *)
+    echo "unexpected argument: $1" >&2
+    exit 2
+    ;;
+esac
+"#,
+    );
+    fs::write(staging.join("README.md"), "# CppGauntlet\n").unwrap();
+    fs::write(staging.join("LICENSE"), "MIT\n").unwrap();
+    fs::write(staging.join("INSTALLATION.md"), "# Installation\n").unwrap();
+    fs::write(staging.join("RELEASE.md"), "# Release\n").unwrap();
+
+    let tar_status = StdCommand::new("tar")
+        .current_dir(temp.path())
+        .args(["-czf", &archive_name, package_name])
+        .status()
+        .unwrap();
+    assert!(tar_status.success());
+
+    let checksum_output = match StdCommand::new("shasum")
+        .current_dir(temp.path())
+        .args(["-a", "256", &archive_name])
+        .output()
+    {
+        Ok(output) if output.status.success() => output,
+        _ => StdCommand::new("sha256sum")
+            .current_dir(temp.path())
+            .arg(&archive_name)
+            .output()
+            .unwrap(),
+    };
+    assert!(checksum_output.status.success());
+    fs::write(temp.path().join(&checksum_name), checksum_output.stdout).unwrap();
+
+    let script = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("scripts")
+        .join("smoke-release-archive.sh");
+    let output = StdCommand::new("bash")
+        .arg(script)
+        .arg(temp.path().join(&archive_name))
+        .arg(temp.path().join(&checksum_name))
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]

@@ -1,6 +1,6 @@
 # Release Checklist
 
-CppGauntlet has automated GitHub release builds for macOS and Linux. The release workflow builds release binaries, packages archives, writes SHA-256 checksums, generates CycloneDX SBOMs, creates signed GitHub artifact attestations, generates categorized release notes from merged pull requests, uploads workflow artifacts, and attaches assets to tagged GitHub releases.
+CppGauntlet has automated GitHub release builds for macOS and Linux. The release workflow builds release binaries, packages archives, writes SHA-256 checksums, smoke-tests generated archives, generates CycloneDX SBOMs, creates signed GitHub artifact attestations, generates categorized release notes from merged pull requests, uploads workflow artifacts, and attaches assets to tagged GitHub releases.
 
 ## Version Metadata
 
@@ -21,6 +21,12 @@ bash scripts/verify-report-schema-compat.sh
 bash scripts/generate-release-sbom.sh /tmp/cppgauntlet.cdx.json
 cargo package --list
 cargo package --no-verify
+```
+
+When a local release archive has been generated, also run:
+
+```bash
+bash scripts/smoke-release-archive.sh <archive.tar.gz> <archive.tar.gz.sha256>
 ```
 
 Use `--offline` for local package checks when the crates.io index is already cached and network access is unavailable.
@@ -60,6 +66,7 @@ For each platform, the workflow runs:
 cargo test --locked
 bash scripts/verify-report-schema-compat.sh
 cargo build --release --locked
+bash scripts/smoke-release-archive.sh <archive.tar.gz> <archive.tar.gz.sha256>
 ```
 
 The schema compatibility gate exercises older report and baseline fixtures before release binaries are built.
@@ -79,6 +86,18 @@ cppgauntlet-<version>-<platform>-<arch>.tar.gz
 ```
 
 Each archive is paired with a `.sha256` checksum file. Tag builds upload assets to the GitHub release with `gh release upload --clobber`.
+
+## Archive Smoke Test
+
+The release workflow runs [scripts/smoke-release-archive.sh](../scripts/smoke-release-archive.sh) immediately after packaging each archive:
+
+```bash
+bash scripts/smoke-release-archive.sh \
+  dist/cppgauntlet-v0.1.0-linux-x86_64.tar.gz \
+  dist/cppgauntlet-v0.1.0-linux-x86_64.tar.gz.sha256
+```
+
+The smoke test verifies the checksum, inspects the tar manifest, confirms the expected files are present, extracts the archive, checks that `cppgauntlet` is executable, and runs `cppgauntlet --version` plus `cppgauntlet --help`.
 
 ## Release SBOM
 
@@ -192,5 +211,5 @@ Planned follow-up automation:
 
 - crates.io publication
 - Homebrew formula update
-- package archive smoke tests
 - SBOM policy checks
+- release download verification examples

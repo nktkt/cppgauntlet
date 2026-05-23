@@ -74,6 +74,14 @@ jobs:
           echo "archive=$archive" >> "$GITHUB_OUTPUT"
           echo "checksum=$checksum" >> "$GITHUB_OUTPUT"
 
+      - name: Smoke test release archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/smoke-release-archive.sh \
+            "${{ steps.package.outputs.archive }}" \
+            "${{ steps.package.outputs.checksum }}"
+
       - name: Generate release SBOM
         id: sbom
         shell: bash
