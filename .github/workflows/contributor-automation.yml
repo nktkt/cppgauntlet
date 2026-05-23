@@ -1,0 +1,240 @@
+name: Contributor automation
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+  pull_request_target:
+    types: [opened, edited, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  issue-labels:
+    name: Issue labels
+    if: github.event_name == 'issues'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Apply issue labels
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const text = `${issue.title}\n${issue.body || ""}`.toLowerCase();
+
+            const labelDefinitions = {
+              "needs-triage": { color: "fbca04", description: "Needs maintainer triage" },
+              "area: baseline": { color: "5319e7", description: "Diagnostic baseline workflow" },
+              "area: build-systems": { color: "1d76db", description: "CMake or compilation database support" },
+              "area: ci": { color: "0e8a16", description: "CI and GitHub Actions integration" },
+              "area: cli": { color: "0052cc", description: "Command-line behavior" },
+              "area: configuration": { color: "5319e7", description: "Configuration files and options" },
+              "area: coverage": { color: "0e8a16", description: "LLVM coverage workflow" },
+              "area: docs": { color: "0075ca", description: "Documentation" },
+              "area: fuzzing": { color: "d93f0b", description: "libFuzzer workflow" },
+              "area: reports": { color: "5319e7", description: "JSON, Markdown, HTML, or SARIF reports" },
+              "area: static-analysis": { color: "d876e3", description: "clang-tidy or static analyzer integration" }
+            };
+
+            const rules = [
+              ["area: baseline", ["baseline"]],
+              ["area: build-systems", ["cmake", "compile_commands", "compilation database", "build systems"]],
+              ["area: ci", ["ci", "github actions", "workflow", "code scanning"]],
+              ["area: cli", ["cli", "command", "flag", "argument"]],
+              ["area: configuration", ["configuration", "config", "cppgauntlet.yaml"]],
+              ["area: coverage", ["coverage", "llvm-cov", "llvm-profdata", "changed-line"]],
+              ["area: docs", ["documentation", "docs", "readme"]],
+              ["area: fuzzing", ["fuzz", "libfuzzer"]],
+              ["area: reports", ["report", "json", "markdown", "html", "sarif", "schema"]],
+              ["area: static-analysis", ["clang-tidy", "static analysis", "analyzer"]]
+            ];
+
+            const labels = new Set(["needs-triage"]);
+            for (const [label, needles] of rules) {
+              if (needles.some((needle) => text.includes(needle))) {
+                labels.add(label);
+              }
+            }
+
+            await ensureLabels(labelDefinitions, labels);
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              labels: [...labels]
+            });
+
+            async function ensureLabels(definitions, labels) {
+              for (const label of labels) {
+                try {
+                  await github.rest.issues.getLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    name: label
+                  });
+                } catch (error) {
+                  if (error.status !== 404) {
+                    throw error;
+                  }
+                  const definition = definitions[label] || {
+                    color: "ededed",
+                    description: "Managed by contributor automation"
+                  };
+                  await github.rest.issues.createLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    name: label,
+                    color: definition.color,
+                    description: definition.description
+                  });
+                }
+              }
+            }
+
+  pull-request-check:
+    name: Pull request check
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Apply pull request labels
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const pull = context.payload.pull_request;
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pull.number,
+              per_page: 100
+            });
+
+            const labelDefinitions = {
+              "needs-review": { color: "fbca04", description: "Ready for maintainer review" },
+              "status: draft": { color: "cfd3d7", description: "Draft pull request" },
+              "area: ci": { color: "0e8a16", description: "CI and GitHub Actions integration" },
+              "area: docs": { color: "0075ca", description: "Documentation" },
+              "area: tests": { color: "c2e0c6", description: "Tests and fixtures" },
+              "area: core": { color: "1d76db", description: "Rust CLI implementation" },
+              "area: reports": { color: "5319e7", description: "JSON, Markdown, HTML, or SARIF reports" },
+              "area: coverage": { color: "0e8a16", description: "LLVM coverage workflow" },
+              "area: fuzzing": { color: "d93f0b", description: "libFuzzer workflow" }
+            };
+
+            const labels = new Set([pull.draft ? "status: draft" : "needs-review"]);
+            for (const file of files) {
+              const path = file.filename;
+              if (path.startsWith(".github/") || path.startsWith("examples/github-actions/")) {
+                labels.add("area: ci");
+              }
+              if (path.startsWith("docs/") || path === "README.md" || path === "ROADMAP.md") {
+                labels.add("area: docs");
+              }
+              if (path.startsWith("tests/")) {
+                labels.add("area: tests");
+              }
+              if (path.startsWith("src/")) {
+                labels.add("area: core");
+              }
+              if (path.includes("report") || path.includes("REPORT_SCHEMA") || path.includes("SARIF")) {
+                labels.add("area: reports");
+              }
+              if (path.includes("coverage") || path.includes("COVERAGE")) {
+                labels.add("area: coverage");
+              }
+              if (path.includes("fuzz") || path.includes("FUZZING")) {
+                labels.add("area: fuzzing");
+              }
+            }
+
+            await ensureLabels(labelDefinitions, labels);
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pull.number,
+              labels: [...labels]
+            });
+
+            async function ensureLabels(definitions, labels) {
+              for (const label of labels) {
+                try {
+                  await github.rest.issues.getLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    name: label
+                  });
+                } catch (error) {
+                  if (error.status !== 404) {
+                    throw error;
+                  }
+                  const definition = definitions[label] || {
+                    color: "ededed",
+                    description: "Managed by contributor automation"
+                  };
+                  await github.rest.issues.createLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    name: label,
+                    color: definition.color,
+                    description: definition.description
+                  });
+                }
+              }
+            }
+
+      - name: Validate pull request body
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const body = context.payload.pull_request.body || "";
+            const failures = [];
+
+            for (const heading of ["## Summary", "## Validation", "## Compatibility"]) {
+              if (!body.includes(heading)) {
+                failures.push(`Missing required section: ${heading}`);
+              }
+            }
+
+            const summary = sectionBody(body, "## Summary");
+            if (!hasFilledContent(summary)) {
+              failures.push("Fill in the Summary section with a concrete behavior change.");
+            }
+
+            const validation = sectionBody(body, "## Validation");
+            if (!/- \[[xX]\]/.test(validation) && !/\b(not run|skipped|unavailable)\b/i.test(validation)) {
+              failures.push("Record at least one checked validation item or explain skipped validation.");
+            }
+
+            const compatibility = sectionBody(body, "## Compatibility");
+            if (!hasFilledContent(compatibility) && !hasCheckedBox(compatibility)) {
+              failures.push("Fill in the Compatibility section or check an applicable item.");
+            }
+
+            if (failures.length > 0) {
+              core.setFailed(failures.join("\n"));
+            }
+
+            function sectionBody(markdown, heading) {
+              const start = markdown.indexOf(heading);
+              if (start === -1) {
+                return "";
+              }
+              const afterHeading = markdown.slice(start + heading.length);
+              const next = afterHeading.search(/\n##\s+/);
+              return next === -1 ? afterHeading : afterHeading.slice(0, next);
+            }
+
+            function hasFilledContent(value) {
+              return value
+                .split("\n")
+                .map((line) => line.trim())
+                .filter((line) => line && line !== "-" && !/^- \[[ xX]\]/.test(line))
+                .length > 0;
+            }
+
+            function hasCheckedBox(value) {
+              return /- \[[xX]\]/.test(value);
+            }

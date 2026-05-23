@@ -99,6 +99,7 @@ See [docs/ARTIFACT_REPORTS.md](docs/ARTIFACT_REPORTS.md) for Markdown and HTML r
 See [docs/SARIF.md](docs/SARIF.md) for SARIF output.
 See [docs/GITHUB_CODE_SCANNING.md](docs/GITHUB_CODE_SCANNING.md) for GitHub Code Scanning integration.
 See [docs/RELEASE.md](docs/RELEASE.md) for the release checklist.
+See [docs/CONTRIBUTOR_AUTOMATION.md](docs/CONTRIBUTOR_AUTOMATION.md) for issue labeling and pull request checks.
 
 ## MVP Scope
 
@@ -178,7 +179,7 @@ policy:
 
 ## Project Status
 
-CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, custom test commands, optional `clang-tidy` analysis, single-file, compilation database, and CMake/CTest LLVM coverage, changed-line coverage from explicit lines or unified diffs, GitHub Actions changed-line coverage examples, single-file and project-discovered libFuzzer smoke workflows, diagnostic baselines with changed-diagnostic update summaries, CI policy gates including changed-line coverage, baseline review artifacts for GitHub Actions, environment diagnostics, JSON reports with diagnostic fingerprints and parsed source locations, schema compatibility tests for older report and baseline files, Markdown reports, HTML reports, SARIF output, GitHub Code Scanning examples, contributor templates, and release packaging metadata.
+CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, custom test commands, optional `clang-tidy` analysis, single-file, compilation database, and CMake/CTest LLVM coverage, changed-line coverage from explicit lines or unified diffs, GitHub Actions changed-line coverage examples, single-file and project-discovered libFuzzer smoke workflows, diagnostic baselines with changed-diagnostic update summaries, CI policy gates including changed-line coverage, baseline review artifacts for GitHub Actions, environment diagnostics, JSON reports with diagnostic fingerprints and parsed source locations, schema compatibility tests for older report and baseline files, Markdown reports, HTML reports, SARIF output, GitHub Code Scanning examples, contributor templates, contributor automation for issue labels and pull request checks, and release packaging metadata.
 
 ## Contributing
 

@@ -30,6 +30,8 @@ Pull requests should include:
 - notes about any skipped validation or unavailable external tools
 - report schema or configuration compatibility notes when relevant
 
+GitHub Actions also checks that the pull request body keeps the Summary, Validation, and Compatibility sections filled in. The contributor automation workflow applies issue and pull request labels automatically; see [docs/CONTRIBUTOR_AUTOMATION.md](docs/CONTRIBUTOR_AUTOMATION.md).
+
 Before opening a PR, run:
 
 ```bash

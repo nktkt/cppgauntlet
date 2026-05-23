@@ -181,6 +181,35 @@ fn contribution_metadata_is_documented() {
 }
 
 #[test]
+fn contributor_automation_workflow_is_documented() {
+    let workflow = fs::read_to_string(".github/workflows/contributor-automation.yml").unwrap();
+    assert!(workflow.contains("pull_request_target"));
+    assert!(workflow.contains("issues: write"));
+    assert!(workflow.contains("pull-requests: read"));
+    assert!(workflow.contains("actions/github-script@v8"));
+    assert!(workflow.contains("needs-triage"));
+    assert!(workflow.contains("needs-review"));
+    assert!(workflow.contains("area: fuzzing"));
+    assert!(workflow.contains("area: coverage"));
+    assert!(workflow.contains("Validate pull request body"));
+    assert!(workflow.contains("Missing required section:"));
+    assert!(workflow.contains("ensureLabels"));
+
+    let docs = fs::read_to_string("docs/CONTRIBUTOR_AUTOMATION.md").unwrap();
+    assert!(docs.contains(".github/workflows/contributor-automation.yml"));
+    assert!(docs.contains("pull_request_target"));
+    assert!(docs.contains("does not checkout or execute pull request code"));
+    assert!(docs.contains("needs-triage"));
+    assert!(docs.contains("needs-review"));
+
+    let contributing = fs::read_to_string("CONTRIBUTING.md").unwrap();
+    assert!(contributing.contains("docs/CONTRIBUTOR_AUTOMATION.md"));
+
+    let readme = fs::read_to_string("README.md").unwrap();
+    assert!(readme.contains("[docs/CONTRIBUTOR_AUTOMATION.md](docs/CONTRIBUTOR_AUTOMATION.md)"));
+}
+
+#[test]
 fn release_packaging_metadata_is_documented() {
     let cargo = fs::read_to_string("Cargo.toml").unwrap();
     assert!(cargo.contains("readme = \"README.md\""));

@@ -1,0 +1,55 @@
+# Contributor Automation
+
+CppGauntlet uses GitHub Actions to keep issue triage and pull request metadata consistent without requiring contributors to remember repository-specific labels.
+
+## Workflow
+
+The automation lives in [.github/workflows/contributor-automation.yml](../.github/workflows/contributor-automation.yml).
+
+It runs on:
+
+- `issues`: `opened`, `edited`, and `reopened`
+- `pull_request_target`: `opened`, `edited`, `reopened`, `synchronize`, and `ready_for_review`
+
+The `pull_request_target` job does not checkout or execute pull request code. It only reads pull request metadata through the GitHub API.
+
+## Issue Labels
+
+Issue automation always applies `needs-triage`. It also adds area labels from the issue title and body, including:
+
+- `area: baseline`
+- `area: build-systems`
+- `area: ci`
+- `area: cli`
+- `area: configuration`
+- `area: coverage`
+- `area: docs`
+- `area: fuzzing`
+- `area: reports`
+- `area: static-analysis`
+
+Missing labels are created automatically with stable colors and descriptions.
+
+## Pull Request Labels
+
+Pull request automation applies `needs-review` or `status: draft`, then labels the pull request from changed files:
+
+- `.github/**` and `examples/github-actions/**` -> `area: ci`
+- `docs/**`, `README.md`, and `ROADMAP.md` -> `area: docs`
+- `tests/**` -> `area: tests`
+- `src/**` -> `area: core`
+- report, schema, and SARIF paths -> `area: reports`
+- coverage paths -> `area: coverage`
+- fuzzing paths -> `area: fuzzing`
+
+## Pull Request Body Check
+
+The PR body check requires:
+
+- `## Summary`
+- `## Validation`
+- `## Compatibility`
+
+The summary section must contain filled-in content. The validation section must either include at least one checked item or explicitly explain skipped, unavailable, or not-run validation. The compatibility section must include filled-in content or at least one checked item.
+
+This check is intentionally lightweight. It verifies that review context exists, while Rust formatting, linting, and tests remain enforced by the normal CI workflow.
