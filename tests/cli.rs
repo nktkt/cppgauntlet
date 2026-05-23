@@ -166,6 +166,47 @@ fn github_changed_line_coverage_example_is_documented() {
 }
 
 #[test]
+fn github_actions_compile_database_and_cmake_coverage_examples_are_documented() {
+    let compile_database =
+        fs::read_to_string("examples/github-actions/compile-database.yml").unwrap();
+    assert!(compile_database.contains("CPPGAUNTLET_TARGET: build/compile_commands.json"));
+    assert!(compile_database.contains("CPPGAUNTLET_CONFIGURE_COMMAND"));
+    assert!(compile_database.contains("clang-tidy"));
+    assert!(compile_database.contains("--clang-tidy"));
+    assert!(compile_database.contains("actions/upload-artifact@v4"));
+    assert!(compile_database.contains("cppgauntlet-compile-database"));
+    assert!(compile_database.contains("steps.cppgauntlet.outcome == 'failure'"));
+
+    let cmake_coverage = fs::read_to_string("examples/github-actions/cmake-coverage.yml").unwrap();
+    assert!(cmake_coverage.contains("CPPGAUNTLET_MIN_LINE_COVERAGE"));
+    assert!(cmake_coverage.contains("--coverage"));
+    assert!(cmake_coverage.contains("--min-line-coverage"));
+    assert!(cmake_coverage.contains("CPPGAUNTLET_COVERAGE_SOURCE"));
+    assert!(cmake_coverage.contains(".cppgauntlet/cmake-coverage-build/**"));
+    assert!(cmake_coverage.contains(".cppgauntlet/coverage/cmake/**"));
+    assert!(cmake_coverage.contains("cppgauntlet-cmake-coverage"));
+
+    let docs = fs::read_to_string("docs/GITHUB_ACTIONS.md").unwrap();
+    assert!(docs.contains("../examples/github-actions/compile-database.yml"));
+    assert!(docs.contains("../examples/github-actions/cmake-coverage.yml"));
+    assert!(docs.contains("CPPGAUNTLET_CONFIGURE_COMMAND"));
+    assert!(docs.contains("CPPGAUNTLET_MIN_LINE_COVERAGE"));
+
+    let compilation_database_docs = fs::read_to_string("docs/COMPILATION_DATABASE.md").unwrap();
+    assert!(compilation_database_docs.contains("../examples/github-actions/compile-database.yml"));
+
+    let cmake_docs = fs::read_to_string("docs/CMAKE.md").unwrap();
+    assert!(cmake_docs.contains("../examples/github-actions/cmake-coverage.yml"));
+
+    let coverage_docs = fs::read_to_string("docs/COVERAGE.md").unwrap();
+    assert!(coverage_docs.contains("GITHUB_ACTIONS.md"));
+
+    let readme = fs::read_to_string("README.md").unwrap();
+    assert!(readme.contains("[docs/GITHUB_ACTIONS.md](docs/GITHUB_ACTIONS.md)"));
+    assert!(readme.contains("reusable GitHub Actions examples"));
+}
+
+#[test]
 fn contribution_metadata_is_documented() {
     let readme = fs::read_to_string("README.md").unwrap();
     assert!(readme.contains("[CONTRIBUTING.md](CONTRIBUTING.md)"));

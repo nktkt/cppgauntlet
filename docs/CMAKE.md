@@ -92,3 +92,7 @@ Coverage artifacts are written under:
 .cppgauntlet/cmake-coverage-build
 .cppgauntlet/coverage/cmake
 ```
+
+## GitHub Actions
+
+Use [examples/github-actions/cmake-coverage.yml](../examples/github-actions/cmake-coverage.yml) as a reusable CI starting point for CMake coverage checks. It runs `cppgauntlet check . --coverage`, applies a configurable `--min-line-coverage` gate, uploads report artifacts, and keeps the generated CMake coverage build for inspection.

@@ -1,0 +1,68 @@
+name: CppGauntlet CMake coverage
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  cppgauntlet:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    env:
+      CPPGAUNTLET_TARGET: .
+      CPPGAUNTLET_REPORT: .cppgauntlet/cppgauntlet-report.json
+      CPPGAUNTLET_MARKDOWN: .cppgauntlet/cppgauntlet-report.md
+      CPPGAUNTLET_MIN_LINE_COVERAGE: "80"
+      CPPGAUNTLET_COVERAGE_SOURCE: ""
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install C++ coverage tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build llvm
+
+      - name: Install CppGauntlet
+        run: cargo install --git https://github.com/nktkt/cppgauntlet
+
+      - name: Run CppGauntlet CMake coverage
+        id: cppgauntlet
+        continue-on-error: true
+        shell: bash
+        run: |
+          mkdir -p .cppgauntlet
+          args=(
+            check "$CPPGAUNTLET_TARGET"
+            --coverage
+            --min-line-coverage "$CPPGAUNTLET_MIN_LINE_COVERAGE"
+            --report "$CPPGAUNTLET_REPORT"
+            --markdown-report "$CPPGAUNTLET_MARKDOWN"
+          )
+          if [ -n "$CPPGAUNTLET_COVERAGE_SOURCE" ]; then
+            args+=(--coverage-source "$CPPGAUNTLET_COVERAGE_SOURCE")
+          fi
+          cppgauntlet "${args[@]}"
+
+      - name: Upload coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cppgauntlet-cmake-coverage
+          path: |
+            .cppgauntlet/cppgauntlet-report.json
+            .cppgauntlet/cppgauntlet-report.md
+            .cppgauntlet/cmake-coverage-build/**
+            .cppgauntlet/coverage/cmake/**
+          if-no-files-found: warn
+
+      - name: Fail on CppGauntlet gate
+        if: steps.cppgauntlet.outcome == 'failure'
+        run: exit 1

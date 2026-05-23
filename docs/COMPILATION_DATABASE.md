@@ -33,6 +33,10 @@ Runtime execution and sanitizer execution are still single-file workflows. Proje
 
 For CMake projects, see [CMAKE.md](CMAKE.md).
 
+## GitHub Actions
+
+Use [examples/github-actions/compile-database.yml](../examples/github-actions/compile-database.yml) as a reusable CI starting point for raw compilation database checks. It can either consume a committed `compile_commands.json` file or run a configure command that generates `build/compile_commands.json` before invoking CppGauntlet.
+
 ## Supported Entry Shapes
 
 CppGauntlet supports entries with `arguments`:

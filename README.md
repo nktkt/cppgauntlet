@@ -91,6 +91,7 @@ See [docs/CMAKE.md](docs/CMAKE.md) for CMake project checks.
 See [docs/CLANG_TIDY.md](docs/CLANG_TIDY.md) for static analysis with `clang-tidy`.
 See [docs/COVERAGE.md](docs/COVERAGE.md) for source-based coverage with LLVM tools.
 See [docs/GITHUB_CHANGED_LINE_COVERAGE.md](docs/GITHUB_CHANGED_LINE_COVERAGE.md) for GitHub Actions changed-line coverage gates.
+See [docs/GITHUB_ACTIONS.md](docs/GITHUB_ACTIONS.md) for reusable GitHub Actions examples.
 See [docs/FUZZING.md](docs/FUZZING.md) for libFuzzer smoke workflows.
 See [docs/TESTING.md](docs/TESTING.md) for CTest and custom test commands.
 See [docs/POLICY.md](docs/POLICY.md) for CI policy gates.
@@ -180,7 +181,7 @@ policy:
 
 ## Project Status
 
-CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, custom test commands, optional `clang-tidy` analysis, single-file, compilation database, and CMake/CTest LLVM coverage, changed-line coverage from explicit lines or unified diffs, GitHub Actions changed-line coverage examples, single-file and project-discovered libFuzzer smoke workflows, diagnostic baselines with changed-diagnostic update summaries, CI policy gates including changed-line coverage, baseline review artifacts and PR comments for GitHub Actions, environment diagnostics, JSON reports with diagnostic fingerprints and parsed source locations, schema compatibility tests for older report and baseline files, Markdown reports, HTML reports, SARIF output, GitHub Code Scanning examples, contributor templates, contributor automation for issue labels and pull request checks, release packaging metadata, and automated macOS/Linux release builds.
+CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, custom test commands, optional `clang-tidy` analysis, single-file, compilation database, and CMake/CTest LLVM coverage, changed-line coverage from explicit lines or unified diffs, reusable GitHub Actions examples for compile database and CMake coverage checks, single-file and project-discovered libFuzzer smoke workflows, diagnostic baselines with changed-diagnostic update summaries, CI policy gates including changed-line coverage, baseline review artifacts and PR comments for GitHub Actions, environment diagnostics, JSON reports with diagnostic fingerprints and parsed source locations, schema compatibility tests for older report and baseline files, Markdown reports, HTML reports, SARIF output, GitHub Code Scanning examples, contributor templates, contributor automation for issue labels and pull request checks, release packaging metadata, and automated macOS/Linux release builds.
 
 ## Contributing
 

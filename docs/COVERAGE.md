@@ -133,6 +133,7 @@ cppgauntlet check . --changed-lines-diff .cppgauntlet/changed.diff --min-changed
 The diff parser records added lines from the new file side of each hunk. Deleted-only hunks do not add changed lines because they have no coverable line in the current source tree.
 
 See [GITHUB_CHANGED_LINE_COVERAGE.md](GITHUB_CHANGED_LINE_COVERAGE.md) for a GitHub Actions workflow that gates pull requests on changed-line coverage and uploads review artifacts.
+See [GITHUB_ACTIONS.md](GITHUB_ACTIONS.md) for reusable compile database and CMake coverage workflow examples.
 
 ## Configuration
 
