@@ -15,6 +15,7 @@ The example workflow:
 - writes `.cppgauntlet/baseline.candidate.json`
 - writes `.cppgauntlet/baseline-update.md`
 - uploads the report, candidate baseline, and update summary with `actions/upload-artifact@v4`
+- posts or updates a sticky pull request comment with the baseline update summary
 - fails the job after artifact upload when new diagnostics were found
 
 ## Initial Baseline
@@ -34,11 +35,13 @@ Commit `.cppgauntlet/baseline.json` after reviewing the known diagnostics it con
 
 When CI fails on new diagnostics:
 
-1. Download the `cppgauntlet-baseline-review` artifact from the GitHub Actions run.
-2. Inspect `cppgauntlet-report.md` to see the current diagnostics.
-3. Inspect `baseline-update.md` to see new, resolved, and unchanged diagnostic counts.
+1. Read the `CppGauntlet Baseline Review` pull request comment for new, resolved, and unchanged diagnostic counts.
+2. Download the `cppgauntlet-baseline-review` artifact from the GitHub Actions run.
+3. Inspect `cppgauntlet-report.md` to see the current diagnostics.
 4. If the new diagnostics should be accepted as known debt, replace the committed baseline with `baseline.candidate.json`.
 5. Prefer fixing new diagnostics instead of updating the baseline when possible.
+
+The PR comment step uses `issues: write` and `pull-requests: read` permissions. It is marked `continue-on-error` so permission limits on forked pull requests do not hide the underlying CppGauntlet result.
 
 ## Minimal Commands
 

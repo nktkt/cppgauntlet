@@ -11,6 +11,8 @@ jobs:
     permissions:
       contents: read
       actions: read
+      issues: write
+      pull-requests: read
 
     env:
       CPPGAUNTLET_TARGET: path/to/main.cpp
@@ -65,6 +67,50 @@ jobs:
             .cppgauntlet/baseline.candidate.json
             .cppgauntlet/baseline-update.md
           if-no-files-found: warn
+
+      - name: Comment baseline summary
+        if: always() && github.event_name == 'pull_request' && hashFiles('.cppgauntlet/baseline-update.md') != ''
+        continue-on-error: true
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require("fs");
+            const marker = "<!-- cppgauntlet-baseline-review -->";
+            const summaryPath = process.env.CPPGAUNTLET_BASELINE_SUMMARY;
+            const summary = fs.readFileSync(summaryPath, "utf8").trim();
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              marker,
+              "## CppGauntlet Baseline Review",
+              "",
+              summary,
+              "",
+              `Download the \`cppgauntlet-baseline-review\` artifact from [this workflow run](${runUrl}) to inspect the full report and candidate baseline.`
+            ].join("\n");
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100
+            });
+            const previous = comments.find((comment) => comment.body && comment.body.includes(marker));
+
+            if (previous) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: previous.id,
+                body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body
+              });
+            }
 
       - name: Fail on new diagnostics
         if: steps.cppgauntlet.outcome == 'failure'

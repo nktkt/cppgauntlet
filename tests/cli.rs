@@ -112,12 +112,21 @@ fn github_baseline_review_example_is_documented() {
     assert!(workflow.contains("cppgauntlet --format markdown baseline update"));
     assert!(workflow.contains("--previous \"$CPPGAUNTLET_BASELINE\""));
     assert!(workflow.contains("baseline.candidate.json"));
+    assert!(workflow.contains("issues: write"));
+    assert!(workflow.contains("pull-requests: read"));
+    assert!(workflow.contains("actions/github-script@v8"));
+    assert!(workflow.contains("cppgauntlet-baseline-review -->"));
+    assert!(workflow.contains("github.rest.issues.updateComment"));
+    assert!(workflow.contains("github.rest.issues.createComment"));
+    assert!(workflow.contains("continue-on-error: true"));
     assert!(workflow.contains("steps.cppgauntlet.outcome == 'failure'"));
 
     let docs = fs::read_to_string("docs/GITHUB_BASELINE_AUTOMATION.md").unwrap();
     assert!(docs.contains("../examples/github-actions/baseline-review.yml"));
     assert!(docs.contains("cppgauntlet-baseline-review"));
     assert!(docs.contains("baseline.candidate.json"));
+    assert!(docs.contains("CppGauntlet Baseline Review"));
+    assert!(docs.contains("issues: write"));
 
     let baseline_docs = fs::read_to_string("docs/BASELINE.md").unwrap();
     assert!(baseline_docs.contains("GITHUB_BASELINE_AUTOMATION.md"));

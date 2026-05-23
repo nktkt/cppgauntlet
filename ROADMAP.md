@@ -193,12 +193,12 @@ Exit criteria:
 
 ## Near-Term Priorities
 
-1. Add PR comment summaries for baseline update artifacts.
-2. Add explicit report schema migration notes for future breaking changes.
-3. Add reusable GitHub Actions snippets for compile database and CMake coverage targets.
-4. Add per-target fuzz artifact summaries for discovered project fuzz targets.
-5. Add label taxonomy documentation for product areas and support stages.
-6. Add signed release artifacts.
+1. Add explicit report schema migration notes for future breaking changes.
+2. Add reusable GitHub Actions snippets for compile database and CMake coverage targets.
+3. Add per-target fuzz artifact summaries for discovered project fuzz targets.
+4. Add label taxonomy documentation for product areas and support stages.
+5. Add signed release artifacts.
+6. Add release note generation from merged pull requests.
 
 ## Non-Goals
 
