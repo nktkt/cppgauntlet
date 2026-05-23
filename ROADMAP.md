@@ -193,12 +193,12 @@ Exit criteria:
 
 ## Near-Term Priorities
 
-1. Add release SBOM generation.
-2. Add release notes policy configuration.
-3. Add package smoke tests for generated release archives.
-4. Add CI matrix examples for sanitizer and standard combinations.
-5. Add fuzz corpus retention examples for long-running CI jobs.
-6. Add issue lifecycle stale/blocked guidance.
+1. Add release notes policy configuration.
+2. Add package smoke tests for generated release archives.
+3. Add CI matrix examples for sanitizer and standard combinations.
+4. Add fuzz corpus retention examples for long-running CI jobs.
+5. Add issue lifecycle stale/blocked guidance.
+6. Add SBOM policy checks.
 
 ## Non-Goals
 

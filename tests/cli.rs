@@ -372,6 +372,8 @@ fn release_packaging_metadata_is_documented() {
     assert!(release.contains("cargo package --list"));
     assert!(release.contains("cargo package --no-verify"));
     assert!(release.contains("bash scripts/verify-report-schema-compat.sh"));
+    assert!(release.contains("bash scripts/generate-release-sbom.sh"));
+    assert!(release.contains("cppgauntlet-<version>-<platform>-<arch>.cdx.json"));
     assert!(release.contains(".github/workflows/release.yml"));
     assert!(release.contains("cppgauntlet-<version>-<platform>-<arch>.tar.gz"));
     assert!(release.contains("cppgauntlet-<version>-<platform>-<arch>.intoto.jsonl"));
@@ -399,6 +401,9 @@ fn release_build_workflow_is_documented() {
     assert!(workflow.contains("Verify report schema compatibility"));
     assert!(workflow.contains("bash scripts/verify-report-schema-compat.sh"));
     assert!(workflow.contains("cargo build --release --locked"));
+    assert!(workflow.contains("Generate release SBOM"));
+    assert!(workflow.contains("bash scripts/generate-release-sbom.sh"));
+    assert!(workflow.contains("steps.sbom.outputs.sbom"));
     assert!(workflow.contains("actions/attest-build-provenance@v4.1.0"));
     assert!(workflow.contains("subject-path:"));
     assert!(workflow.contains(".intoto.jsonl"));
@@ -420,6 +425,7 @@ fn release_build_workflow_is_documented() {
 
     let readme = fs::read_to_string("README.md").unwrap();
     assert!(readme.contains("schema compatibility tests and release gates"));
+    assert!(readme.contains("CycloneDX release SBOMs"));
     assert!(readme.contains("signed release artifact attestations"));
     assert!(readme.contains("generated GitHub release notes"));
     assert!(readme.contains("automated macOS/Linux release builds"));
@@ -430,6 +436,11 @@ fn release_build_workflow_is_documented() {
 
     let script = fs::read_to_string("scripts/verify-report-schema-compat.sh").unwrap();
     assert!(script.contains("cargo test --locked --test cli schema"));
+
+    let sbom_script = fs::read_to_string("scripts/generate-release-sbom.sh").unwrap();
+    assert!(sbom_script.contains("cargo metadata --locked --format-version 1"));
+    assert!(sbom_script.contains("bomFormat: \"CycloneDX\""));
+    assert!(sbom_script.contains("specVersion: \"1.5\""));
 }
 
 #[test]

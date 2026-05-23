@@ -74,6 +74,15 @@ jobs:
           echo "archive=$archive" >> "$GITHUB_OUTPUT"
           echo "checksum=$checksum" >> "$GITHUB_OUTPUT"
 
+      - name: Generate release SBOM
+        id: sbom
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbom="dist/${{ steps.package.outputs.name }}.cdx.json"
+          bash scripts/generate-release-sbom.sh "$sbom"
+          echo "sbom=$sbom" >> "$GITHUB_OUTPUT"
+
       - name: Attest release artifacts
         id: attest
         uses: actions/attest-build-provenance@v4.1.0
@@ -81,6 +90,7 @@ jobs:
           subject-path: |
             ${{ steps.package.outputs.archive }}
             ${{ steps.package.outputs.checksum }}
+            ${{ steps.sbom.outputs.sbom }}
 
       - name: Name attestation bundle
         id: provenance
@@ -123,6 +133,7 @@ jobs:
           path: |
             ${{ steps.package.outputs.archive }}
             ${{ steps.package.outputs.checksum }}
+            ${{ steps.sbom.outputs.sbom }}
             ${{ steps.provenance.outputs.provenance }}
             ${{ steps.release_notes.outputs.notes }}
 
@@ -144,5 +155,6 @@ jobs:
           gh release upload "$tag" \
             "${{ steps.package.outputs.archive }}" \
             "${{ steps.package.outputs.checksum }}" \
+            "${{ steps.sbom.outputs.sbom }}" \
             "${{ steps.provenance.outputs.provenance }}" \
             --clobber
