@@ -51,7 +51,8 @@ Inspect the package file list and make sure it includes:
 2. Push a tag matching `v*`, for example `v0.1.0`.
 3. Wait for the `Release` and `CI` workflows to pass on the tag.
 4. Confirm the generated macOS and Linux archives, `.sha256` files, `.cdx.json` SBOMs, and `.intoto.jsonl` attestation bundles are attached to the GitHub release.
-5. Review the generated release notes and add installation commands or compatibility notes when needed.
+5. Run the release download verification example from [GITHUB_RELEASE_DOWNLOADS.md](GITHUB_RELEASE_DOWNLOADS.md) against the published tag.
+6. Review the generated release notes and add installation commands or compatibility notes when needed.
 
 ## Automated Binary Builds
 
@@ -229,5 +230,4 @@ Planned follow-up automation:
 
 - crates.io publication
 - Homebrew formula update
-- release download verification examples
 - release artifact provenance verification CI examples

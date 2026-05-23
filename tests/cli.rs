@@ -292,6 +292,56 @@ fn github_actions_compile_database_and_cmake_coverage_examples_are_documented() 
 }
 
 #[test]
+fn github_release_download_verification_example_is_documented() {
+    let workflow =
+        fs::read_to_string("examples/github-actions/release-download-verification.yml").unwrap();
+    assert!(workflow.contains("workflow_dispatch:"));
+    assert!(workflow.contains("version:"));
+    assert!(workflow.contains("schedule:"));
+    assert!(workflow.contains("fail-fast: false"));
+    assert!(workflow.contains("platform: linux"));
+    assert!(workflow.contains("platform: macos"));
+    assert!(workflow.contains("CPPGAUNTLET_REPOSITORY: nktkt/cppgauntlet"));
+    assert!(workflow.contains("CPPGAUNTLET_VERSION"));
+    assert!(workflow.contains("gh release view"));
+    assert!(workflow.contains("gh release download"));
+    assert!(workflow.contains("--pattern \"$archive\""));
+    assert!(workflow.contains("--pattern \"$checksum\""));
+    assert!(workflow.contains("shasum -a 256 -c"));
+    assert!(workflow.contains("tar -xzf"));
+    assert!(workflow.contains("\"$binary\" --version"));
+    assert!(workflow.contains("\"$binary\" --help"));
+
+    let docs = fs::read_to_string("docs/GITHUB_RELEASE_DOWNLOADS.md").unwrap();
+    assert!(docs.contains("../examples/github-actions/release-download-verification.yml"));
+    assert!(docs.contains("CPPGAUNTLET_VERSION"));
+    assert!(docs.contains("gh release download"));
+    assert!(docs.contains("shasum -a 256 -c"));
+    assert!(docs.contains("cppgauntlet-<version>-<platform>-<arch>.tar.gz"));
+    assert!(docs.contains("RELEASE.md#artifact-signing"));
+
+    let actions = fs::read_to_string("docs/GITHUB_ACTIONS.md").unwrap();
+    assert!(actions.contains("Release Download Verification"));
+    assert!(actions.contains("../examples/github-actions/release-download-verification.yml"));
+    assert!(actions.contains("GITHUB_RELEASE_DOWNLOADS.md"));
+
+    let installation = fs::read_to_string("docs/INSTALLATION.md").unwrap();
+    assert!(installation.contains("GITHUB_RELEASE_DOWNLOADS.md"));
+
+    let release = fs::read_to_string("docs/RELEASE.md").unwrap();
+    assert!(release.contains("Run the release download verification example"));
+    assert!(release.contains("GITHUB_RELEASE_DOWNLOADS.md"));
+
+    let readme = fs::read_to_string("README.md").unwrap();
+    assert!(readme.contains("[docs/GITHUB_RELEASE_DOWNLOADS.md](docs/GITHUB_RELEASE_DOWNLOADS.md)"));
+    assert!(readme.contains("GitHub release download verification examples"));
+
+    let roadmap = fs::read_to_string("ROADMAP.md").unwrap();
+    assert!(roadmap.contains("1. Add Homebrew tap release draft automation."));
+    assert!(roadmap.contains("release download retry and mirror guidance"));
+}
+
+#[test]
 fn contribution_metadata_is_documented() {
     let readme = fs::read_to_string("README.md").unwrap();
     assert!(readme.contains("[CONTRIBUTING.md](CONTRIBUTING.md)"));

@@ -193,12 +193,12 @@ Exit criteria:
 
 ## Near-Term Priorities
 
-1. Add release download verification examples.
-2. Add Homebrew tap release draft automation.
-3. Add release artifact provenance verification CI examples.
-4. Add automated stale issue review examples.
-5. Add release checksum manifest signing.
-6. Add crates.io publish token policy documentation.
+1. Add Homebrew tap release draft automation.
+2. Add release artifact provenance verification CI examples.
+3. Add automated stale issue review examples.
+4. Add release checksum manifest signing.
+5. Add crates.io publish token policy documentation.
+6. Add release download retry and mirror guidance.
 
 ## Non-Goals
 

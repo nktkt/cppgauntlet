@@ -1,0 +1,105 @@
+name: CppGauntlet release download verification
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: CppGauntlet release tag to verify, such as v0.1.0. Leave empty for latest.
+        required: false
+        type: string
+  schedule:
+    - cron: "31 4 * * 1"
+
+jobs:
+  release-download:
+    name: Verify ${{ matrix.platform }} release download
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: macos-latest
+            platform: macos
+
+    env:
+      CPPGAUNTLET_REPOSITORY: nktkt/cppgauntlet
+      CPPGAUNTLET_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || '' }}
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Resolve release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="$CPPGAUNTLET_VERSION"
+          if [ -z "$version" ]; then
+            version="$(gh release view --repo "$CPPGAUNTLET_REPOSITORY" --json tagName --jq '.tagName')"
+          fi
+
+          case "$version" in
+            v*) ;;
+            *)
+              echo "Expected a release tag like v0.1.0, got: $version" >&2
+              exit 1
+              ;;
+          esac
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve release asset names
+        id: asset
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          package="cppgauntlet-${{ steps.version.outputs.version }}-${{ matrix.platform }}-$(uname -m)"
+          archive="${package}.tar.gz"
+          checksum="${archive}.sha256"
+
+          echo "package=$package" >> "$GITHUB_OUTPUT"
+          echo "archive=$archive" >> "$GITHUB_OUTPUT"
+          echo "checksum=$checksum" >> "$GITHUB_OUTPUT"
+
+      - name: Download release archive and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          archive="${{ steps.asset.outputs.archive }}"
+          checksum="${{ steps.asset.outputs.checksum }}"
+
+          mkdir -p cppgauntlet-release
+          gh release download "${{ steps.version.outputs.version }}" \
+            --repo "$CPPGAUNTLET_REPOSITORY" \
+            --pattern "$archive" \
+            --pattern "$checksum" \
+            --dir cppgauntlet-release \
+            --clobber
+
+      - name: Verify release checksum
+        shell: bash
+        working-directory: cppgauntlet-release
+        run: |
+          set -euo pipefail
+          shasum -a 256 -c "${{ steps.asset.outputs.checksum }}"
+
+      - name: Smoke test downloaded binary
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          archive="cppgauntlet-release/${{ steps.asset.outputs.archive }}"
+          package="cppgauntlet-release/${{ steps.asset.outputs.package }}"
+          binary="${package}/cppgauntlet"
+
+          tar -xzf "$archive" -C cppgauntlet-release
+          test -x "$binary"
+          "$binary" --version
+          "$binary" --help
