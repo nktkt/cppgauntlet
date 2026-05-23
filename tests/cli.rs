@@ -105,6 +105,30 @@ fn github_code_scanning_example_is_documented() {
 }
 
 #[test]
+fn github_baseline_review_example_is_documented() {
+    let workflow = fs::read_to_string("examples/github-actions/baseline-review.yml").unwrap();
+    assert!(workflow.contains("actions/upload-artifact@v4"));
+    assert!(workflow.contains("--fail-on-new-diagnostics"));
+    assert!(workflow.contains("cppgauntlet --format markdown baseline update"));
+    assert!(workflow.contains("--previous \"$CPPGAUNTLET_BASELINE\""));
+    assert!(workflow.contains("baseline.candidate.json"));
+    assert!(workflow.contains("steps.cppgauntlet.outcome == 'failure'"));
+
+    let docs = fs::read_to_string("docs/GITHUB_BASELINE_AUTOMATION.md").unwrap();
+    assert!(docs.contains("../examples/github-actions/baseline-review.yml"));
+    assert!(docs.contains("cppgauntlet-baseline-review"));
+    assert!(docs.contains("baseline.candidate.json"));
+
+    let baseline_docs = fs::read_to_string("docs/BASELINE.md").unwrap();
+    assert!(baseline_docs.contains("GITHUB_BASELINE_AUTOMATION.md"));
+
+    let readme = fs::read_to_string("README.md").unwrap();
+    assert!(
+        readme.contains("[docs/GITHUB_BASELINE_AUTOMATION.md](docs/GITHUB_BASELINE_AUTOMATION.md)")
+    );
+}
+
+#[test]
 fn contribution_metadata_is_documented() {
     let readme = fs::read_to_string("README.md").unwrap();
     assert!(readme.contains("[CONTRIBUTING.md](CONTRIBUTING.md)"));

@@ -1,0 +1,71 @@
+name: CppGauntlet baseline review
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  cppgauntlet:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+
+    env:
+      CPPGAUNTLET_TARGET: path/to/main.cpp
+      CPPGAUNTLET_BASELINE: .cppgauntlet/baseline.json
+      CPPGAUNTLET_REPORT: .cppgauntlet/cppgauntlet-report.json
+      CPPGAUNTLET_MARKDOWN: .cppgauntlet/cppgauntlet-report.md
+      CPPGAUNTLET_BASELINE_CANDIDATE: .cppgauntlet/baseline.candidate.json
+      CPPGAUNTLET_BASELINE_SUMMARY: .cppgauntlet/baseline-update.md
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install CppGauntlet
+        run: cargo install --git https://github.com/nktkt/cppgauntlet
+
+      - name: Verify baseline exists
+        run: test -f "$CPPGAUNTLET_BASELINE"
+
+      - name: Run CppGauntlet against baseline
+        id: cppgauntlet
+        continue-on-error: true
+        run: |
+          mkdir -p .cppgauntlet
+          cppgauntlet check "$CPPGAUNTLET_TARGET" \
+            --sanitizers none \
+            --baseline "$CPPGAUNTLET_BASELINE" \
+            --fail-on-new-diagnostics \
+            --report "$CPPGAUNTLET_REPORT" \
+            --markdown-report "$CPPGAUNTLET_MARKDOWN"
+
+      - name: Build baseline candidate
+        if: always() && hashFiles('.cppgauntlet/cppgauntlet-report.json') != ''
+        run: |
+          cppgauntlet --format markdown baseline update \
+            --report "$CPPGAUNTLET_REPORT" \
+            --previous "$CPPGAUNTLET_BASELINE" \
+            --output "$CPPGAUNTLET_BASELINE_CANDIDATE" \
+            > "$CPPGAUNTLET_BASELINE_SUMMARY"
+
+      - name: Upload review artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cppgauntlet-baseline-review
+          path: |
+            .cppgauntlet/cppgauntlet-report.json
+            .cppgauntlet/cppgauntlet-report.md
+            .cppgauntlet/baseline.candidate.json
+            .cppgauntlet/baseline-update.md
+          if-no-files-found: warn
+
+      - name: Fail on new diagnostics
+        if: steps.cppgauntlet.outcome == 'failure'
+        run: exit 1

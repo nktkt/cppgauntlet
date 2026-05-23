@@ -74,6 +74,8 @@ cppgauntlet --format json baseline update --report current.json --previous basel
 
 The summary includes previous, new, resolved, and unchanged unique diagnostic counts. This is useful for CI jobs that upload the update result as an artifact before committing or reviewing a baseline change.
 
+See [GITHUB_BASELINE_AUTOMATION.md](GITHUB_BASELINE_AUTOMATION.md) for a GitHub Actions workflow that uploads a reviewable baseline candidate and update summary.
+
 ## Report Output
 
 When a baseline is configured, each current diagnostic receives a `baseline_status`:
