@@ -1,6 +1,6 @@
 # Release Checklist
 
-CppGauntlet releases are not yet automated. This checklist records the expected package and artifact checks before the first public release.
+CppGauntlet has automated GitHub release builds for macOS and Linux. The release workflow builds release binaries, packages archives, writes SHA-256 checksums, uploads workflow artifacts, and attaches assets to tagged GitHub releases.
 
 ## Version Metadata
 
@@ -37,16 +37,47 @@ Inspect the package file list and make sure it includes:
 ## GitHub Release Preparation
 
 1. Tag the release from a clean `main` branch.
-2. Wait for GitHub Actions to pass on the tag.
-3. Attach generated archives or binaries when binary packaging is available.
-4. Include installation commands and a short compatibility note in the release notes.
+2. Push a tag matching `v*`, for example `v0.1.0`.
+3. Wait for the `Release` and `CI` workflows to pass on the tag.
+4. Confirm the generated macOS and Linux archives and `.sha256` files are attached to the GitHub release.
+5. Include installation commands and a short compatibility note in the release notes.
+
+## Automated Binary Builds
+
+The release workflow lives in [.github/workflows/release.yml](../.github/workflows/release.yml).
+
+It runs on:
+
+- tags matching `v*`
+- manual `workflow_dispatch`
+
+For each platform, the workflow runs:
+
+```bash
+cargo test --locked
+cargo build --release --locked
+```
+
+It packages:
+
+- `cppgauntlet`
+- `README.md`
+- `LICENSE`
+- `docs/INSTALLATION.md`
+- `docs/RELEASE.md`
+
+Archive names use:
+
+```text
+cppgauntlet-<version>-<platform>-<arch>.tar.gz
+```
+
+Each archive is paired with a `.sha256` checksum file. Tag builds upload assets to the GitHub release with `gh release upload --clobber`.
 
 ## Future Automation
 
-Planned release automation:
+Planned follow-up automation:
 
-- cross-platform release builds for macOS and Linux
-- checksums for binary artifacts
 - signed release artifacts
 - crates.io publication
 - Homebrew formula update

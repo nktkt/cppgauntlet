@@ -35,6 +35,21 @@ cppgauntlet --version
 cppgauntlet doctor
 ```
 
+## Install From GitHub Releases
+
+Tagged releases publish macOS and Linux archives from the `Release` workflow:
+
+```bash
+tar -xzf cppgauntlet-v0.1.0-linux-x86_64.tar.gz
+./cppgauntlet-v0.1.0-linux-x86_64/cppgauntlet --version
+```
+
+Verify the archive first with the matching `.sha256` file:
+
+```bash
+shasum -a 256 -c cppgauntlet-v0.1.0-linux-x86_64.tar.gz.sha256
+```
+
 ## Install From a Local Checkout
 
 ```bash
@@ -54,7 +69,6 @@ cargo run -- check tests/fixtures/hello.cpp --sanitizers none
 Planned distribution targets include:
 
 - crates.io with `cargo install cppgauntlet`
-- prebuilt macOS and Linux binaries attached to GitHub releases
 - Homebrew tap support
 
-Until those release channels exist, use `cargo install --git` or `cargo install --path`.
+Until crates.io and Homebrew release channels exist, use `cargo install --git`, GitHub release archives, or `cargo install --path`.

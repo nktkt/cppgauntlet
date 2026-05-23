@@ -235,6 +235,34 @@ fn release_packaging_metadata_is_documented() {
     let release = fs::read_to_string("docs/RELEASE.md").unwrap();
     assert!(release.contains("cargo package --list"));
     assert!(release.contains("cargo package --no-verify"));
+    assert!(release.contains(".github/workflows/release.yml"));
+    assert!(release.contains("cppgauntlet-<version>-<platform>-<arch>.tar.gz"));
+}
+
+#[test]
+fn release_build_workflow_is_documented() {
+    let ci = fs::read_to_string(".github/workflows/ci.yml").unwrap();
+    assert!(ci.contains("tags: [\"v*\"]"));
+
+    let workflow = fs::read_to_string(".github/workflows/release.yml").unwrap();
+    assert!(workflow.contains("tags:"));
+    assert!(workflow.contains("\"v*\""));
+    assert!(workflow.contains("workflow_dispatch"));
+    assert!(workflow.contains("ubuntu-latest"));
+    assert!(workflow.contains("macos-latest"));
+    assert!(workflow.contains("cargo test --locked"));
+    assert!(workflow.contains("cargo build --release --locked"));
+    assert!(workflow.contains("actions/upload-artifact@v4"));
+    assert!(workflow.contains("gh release upload"));
+    assert!(workflow.contains("shasum -a 256"));
+    assert!(workflow.contains("(cd dist && shasum"));
+
+    let installation = fs::read_to_string("docs/INSTALLATION.md").unwrap();
+    assert!(installation.contains("Install From GitHub Releases"));
+    assert!(installation.contains("shasum -a 256 -c"));
+
+    let readme = fs::read_to_string("README.md").unwrap();
+    assert!(readme.contains("automated macOS/Linux release builds"));
 }
 
 #[test]

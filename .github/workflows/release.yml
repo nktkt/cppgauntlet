@@ -1,0 +1,98 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  binary:
+    name: Binary (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: macos-latest
+            platform: macos
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Test
+        run: cargo test --locked
+
+      - name: Build release binary
+        run: cargo build --release --locked
+
+      - name: Package release archive
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="${GITHUB_REF_NAME}"
+          if [[ "$version" != v* ]]; then
+            version="manual-${GITHUB_RUN_NUMBER}"
+          fi
+
+          arch="$(uname -m)"
+          name="cppgauntlet-${version}-${{ matrix.platform }}-${arch}"
+          staging="dist/${name}"
+          archive="dist/${name}.tar.gz"
+          checksum="${archive}.sha256"
+
+          mkdir -p "$staging"
+          cp target/release/cppgauntlet "$staging/"
+          strip "$staging/cppgauntlet" 2>/dev/null || true
+          cp README.md LICENSE "$staging/"
+          cp docs/INSTALLATION.md docs/RELEASE.md "$staging/"
+
+          tar -C dist -czf "$archive" "$name"
+          if command -v shasum >/dev/null 2>&1; then
+            (cd dist && shasum -a 256 "${name}.tar.gz" > "${name}.tar.gz.sha256")
+          else
+            (cd dist && sha256sum "${name}.tar.gz" > "${name}.tar.gz.sha256")
+          fi
+
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "archive=$archive" >> "$GITHUB_OUTPUT"
+          echo "checksum=$checksum" >> "$GITHUB_OUTPUT"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: |
+            ${{ steps.package.outputs.archive }}
+            ${{ steps.package.outputs.checksum }}
+
+      - name: Publish GitHub release assets
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+
+          gh release view "$tag" >/dev/null 2>&1 \
+            || gh release create "$tag" \
+              --title "$tag" \
+              --notes "Automated CppGauntlet release build." \
+            || gh release view "$tag" >/dev/null
+
+          gh release upload "$tag" \
+            "${{ steps.package.outputs.archive }}" \
+            "${{ steps.package.outputs.checksum }}" \
+            --clobber
