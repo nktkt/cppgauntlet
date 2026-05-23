@@ -70,6 +70,8 @@ CppGauntlet keeps compatibility fixtures for older report and baseline files. Th
 
 `baseline update` writes the normalized baseline with the current schema version. For schema version `1` reports, it rebuilds structured diagnostics from stage stdout/stderr when possible. For schema version `2` reports, it backfills diagnostic metadata when the older report contains raw diagnostic text.
 
+See [REPORT_SCHEMA_MIGRATIONS.md](REPORT_SCHEMA_MIGRATIONS.md) for migration behavior, consumer guidance, and the checklist for future schema changes.
+
 ## Stage
 
 Each stage describes one command or one skipped pipeline step:

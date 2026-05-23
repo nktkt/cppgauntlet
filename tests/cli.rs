@@ -293,6 +293,27 @@ fn project_fuzz_discovery_is_documented() {
 }
 
 #[test]
+fn report_schema_migrations_are_documented() {
+    let migrations = fs::read_to_string("docs/REPORT_SCHEMA_MIGRATIONS.md").unwrap();
+    assert!(migrations.contains("The current report schema version is `3`"));
+    assert!(migrations.contains("## Schema Version 1"));
+    assert!(migrations.contains("## Schema Version 2"));
+    assert!(migrations.contains("## Schema Version 3"));
+    assert!(migrations.contains("baseline update"));
+    assert!(migrations.contains("REPORT_SCHEMA_VERSION"));
+    assert!(migrations.contains("tests/fixtures/reports/schema-v1-report.json"));
+    assert!(migrations.contains("tests/fixtures/reports/schema-v2-baseline.json"));
+    assert!(migrations.contains("summary.coverage.changed_lines"));
+    assert!(migrations.contains("diagnostics[].fingerprint"));
+
+    let schema = fs::read_to_string("docs/REPORT_SCHEMA.md").unwrap();
+    assert!(schema.contains("REPORT_SCHEMA_MIGRATIONS.md"));
+
+    let readme = fs::read_to_string("README.md").unwrap();
+    assert!(readme.contains("docs/REPORT_SCHEMA_MIGRATIONS.md"));
+}
+
+#[test]
 #[cfg(unix)]
 fn doctor_reports_custom_required_tool_available() {
     let temp = tempdir().unwrap();

@@ -82,6 +82,7 @@ The current JSON report schema is version `3`. Each stage records:
 - generated artifact path
 
 See [docs/REPORT_SCHEMA.md](docs/REPORT_SCHEMA.md) for the current report contract.
+See [docs/REPORT_SCHEMA_MIGRATIONS.md](docs/REPORT_SCHEMA_MIGRATIONS.md) for schema compatibility and migration guidance.
 See [docs/INSTALLATION.md](docs/INSTALLATION.md) for install options and tool requirements.
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the current configuration file format.
 See [docs/DOCTOR.md](docs/DOCTOR.md) for environment diagnostics.
