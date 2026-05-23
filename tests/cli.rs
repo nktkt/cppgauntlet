@@ -322,15 +322,18 @@ fn project_fuzz_discovery_is_documented() {
     assert!(fuzzing.contains("LLVMFuzzerTestOneInput"));
     assert!(fuzzing.contains("fuzz_discover"));
     assert!(fuzzing.contains("fuzz_compile:src/parser_fuzz.cpp"));
+    assert!(fuzzing.contains("fuzz_summary:src/parser_fuzz.cpp"));
+    assert!(fuzzing.contains(".cppgauntlet/fuzz/summaries/<target-id>.json"));
 
     let schema = fs::read_to_string("docs/REPORT_SCHEMA.md").unwrap();
     assert!(schema.contains("fuzz_discover"));
     assert!(schema.contains("fuzz_compile:<source path>"));
     assert!(schema.contains("fuzz_run:<source path>"));
+    assert!(schema.contains("fuzz_summary:<source path>"));
 
     let readme = fs::read_to_string("README.md").unwrap();
     assert!(readme.contains("cargo run -- check ./project --fuzz --fuzz-seconds 5"));
-    assert!(readme.contains("project-discovered libFuzzer smoke workflows"));
+    assert!(readme.contains("per-target artifact summaries"));
 }
 
 #[test]
@@ -1524,6 +1527,50 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t *data, std::size_t size
         .unwrap()
         .iter()
         .any(|arg| arg.as_str().unwrap().ends_with("seed-corpus")));
+
+    let fuzz_summary = stage_with_prefix(&value, "fuzz_summary:");
+    assert_eq!(fuzz_summary["status"], "passed");
+    assert!(fuzz_summary["stdout"]
+        .as_str()
+        .unwrap()
+        .contains("wrote fuzz artifact summary"));
+
+    let summary_path = std::path::PathBuf::from(fuzz_summary["artifact"].as_str().unwrap());
+    let summary_path = if summary_path.is_absolute() {
+        summary_path
+    } else {
+        temp.path().join(summary_path)
+    };
+    let summary = read_report_at(summary_path);
+    assert!(summary["source"]
+        .as_str()
+        .unwrap()
+        .ends_with("fuzz/one_fuzz.cpp"));
+    assert_eq!(summary["artifact_id"], "000-fuzz_one_fuzz.cpp");
+    assert_eq!(summary["fuzz_seconds"], 1);
+    assert!(summary["executable"]
+        .as_str()
+        .unwrap()
+        .contains("000-fuzz_one_fuzz.cpp"));
+    assert!(summary["corpus"][0]
+        .as_str()
+        .unwrap()
+        .ends_with("seed-corpus"));
+    assert!(summary["crash_artifact_dir"]
+        .as_str()
+        .unwrap()
+        .contains("000-fuzz_one_fuzz.cpp"));
+    assert!(summary["crash_artifacts"].as_array().unwrap().is_empty());
+    assert_eq!(summary["compile_stage"]["status"], "passed");
+    assert!(summary["compile_stage"]["name"]
+        .as_str()
+        .unwrap()
+        .contains("fuzz_compile:"));
+    assert_eq!(summary["run_stage"]["status"], "passed");
+    assert!(summary["run_stage"]["name"]
+        .as_str()
+        .unwrap()
+        .contains("fuzz_run:"));
 }
 
 #[test]

@@ -48,10 +48,15 @@ The fuzz workflow records:
 - `fuzz_discover`: for project checks, lists discovered fuzz targets
 - `fuzz_compile`: builds the libFuzzer executable
 - `fuzz_run`: runs the executable with `-max_total_time=<seconds>`
+- `fuzz_summary:<source path>`: for project checks, writes a per-target artifact summary
 
-Project checks suffix per-target stages with the source path, for example `fuzz_compile:src/parser_fuzz.cpp` and `fuzz_run:src/parser_fuzz.cpp`.
+Project checks suffix per-target stages with the source path, for example `fuzz_compile:src/parser_fuzz.cpp`, `fuzz_run:src/parser_fuzz.cpp`, and `fuzz_summary:src/parser_fuzz.cpp`.
 
 Crash artifacts are written under `.cppgauntlet/fuzz/artifacts` by passing libFuzzer's `-artifact_prefix` option.
+
+For project checks, CppGauntlet creates one crash artifact directory per discovered fuzz target under `.cppgauntlet/fuzz/artifacts/<target-id>/`.
+
+Project fuzz summaries are written under `.cppgauntlet/fuzz/summaries/<target-id>.json`. Each summary records the source path, target artifact id, fuzz executable, corpus paths, fuzz duration, crash artifact directory, discovered crash artifact files, compile stage status, and run stage status.
 
 When no corpus is supplied, single-source checks use `.cppgauntlet/fuzz/corpus`. Project checks create a separate default corpus directory per discovered fuzz target under `.cppgauntlet/fuzz/corpus/`.
 

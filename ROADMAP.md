@@ -193,12 +193,12 @@ Exit criteria:
 
 ## Near-Term Priorities
 
-1. Add per-target fuzz artifact summaries for discovered project fuzz targets.
-2. Add label taxonomy documentation for product areas and support stages.
-3. Add signed release artifacts.
-4. Add release note generation from merged pull requests.
-5. Add schema compatibility automation for release candidates.
-6. Add reusable workflow matrices for multi-target CI.
+1. Add label taxonomy documentation for product areas and support stages.
+2. Add signed release artifacts.
+3. Add release note generation from merged pull requests.
+4. Add schema compatibility automation for release candidates.
+5. Add reusable workflow matrices for multi-target CI.
+6. Add fuzz crash artifact upload examples for GitHub Actions.
 
 ## Non-Goals
 

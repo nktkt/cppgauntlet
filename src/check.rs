@@ -272,12 +272,15 @@ fn run_project_fuzz(
     let fuzz_dir = artifact_root.join("fuzz");
     let build_dir = fuzz_dir.join("build");
     let fuzz_artifact_dir = fuzz_dir.join("artifacts");
+    let fuzz_summary_dir = fuzz_dir.join("summaries");
     create_dir(&build_dir)?;
     create_dir(&fuzz_artifact_dir)?;
+    create_dir(&fuzz_summary_dir)?;
     let build_dir = build_dir.canonicalize().unwrap_or(build_dir);
     let fuzz_artifact_dir = fuzz_artifact_dir
         .canonicalize()
         .unwrap_or(fuzz_artifact_dir);
+    let fuzz_summary_dir = fuzz_summary_dir.canonicalize().unwrap_or(fuzz_summary_dir);
 
     let mut targets = discover_fuzz_targets(&database);
     stages.push(fuzz_discover_stage(&database, &targets));
@@ -288,9 +291,12 @@ fn run_project_fuzz(
         &mut stages,
         &args,
         &targets,
-        &build_dir,
-        &fuzz_dir,
-        &fuzz_artifact_dir,
+        ProjectFuzzDirs {
+            build_dir: &build_dir,
+            fuzz_dir: &fuzz_dir,
+            artifact_dir: &fuzz_artifact_dir,
+            summary_dir: &fuzz_summary_dir,
+        },
         timeout,
     )?;
     append_test_command_stage(&mut stages, &args, database.path.parent(), timeout);
@@ -816,9 +822,7 @@ fn append_project_fuzz_stages(
     stages: &mut Vec<StageReport>,
     args: &ResolvedCheckArgs,
     targets: &[FuzzTarget],
-    build_dir: &Path,
-    fuzz_dir: &Path,
-    fuzz_artifact_dir: &Path,
+    dirs: ProjectFuzzDirs<'_>,
     timeout: Duration,
 ) -> Result<(), AppError> {
     if stages
@@ -829,6 +833,7 @@ fn append_project_fuzz_stages(
             [
                 StageReport::skipped(fuzz_stage_name("fuzz_compile", &target.source)),
                 StageReport::skipped(fuzz_stage_name("fuzz_run", &target.source)),
+                StageReport::skipped(fuzz_stage_name("fuzz_summary", &target.source)),
             ]
         }));
         return Ok(());
@@ -838,34 +843,44 @@ fn append_project_fuzz_stages(
     let fuzz_flags = fuzz_flags(&sanitizers);
 
     for target in targets {
-        let executable = build_dir.join(project_fuzz_executable_name(target));
+        let executable = dirs.build_dir.join(project_fuzz_executable_name(target));
+        let default_corpus = dirs.fuzz_dir.join("corpus").join(&target.artifact_id);
+        let corpus = selected_fuzz_corpus(&default_corpus, &args.fuzz_corpus);
+        let artifact_dir = dirs.artifact_dir.join(&target.artifact_id);
+        create_dir(&artifact_dir)?;
+
         let fuzz_compile = project_fuzz_compile_stage(target, &executable, &fuzz_flags, timeout)?;
         let fuzz_compile_ok = fuzz_compile.status == StageStatus::Passed;
-        stages.push(fuzz_compile);
+        stages.push(fuzz_compile.clone());
 
-        if fuzz_compile_ok {
-            let default_corpus = fuzz_dir.join("corpus").join(&target.artifact_id);
-            let corpus = selected_fuzz_corpus(&default_corpus, &args.fuzz_corpus);
+        let fuzz_run = if fuzz_compile_ok {
             for path in &corpus {
                 create_dir(path)?;
             }
 
-            let artifact_dir = fuzz_artifact_dir.join(&target.artifact_id);
-            create_dir(&artifact_dir)?;
-            stages.push(fuzz_run_stage(
+            fuzz_run_stage(
                 fuzz_stage_name("fuzz_run", &target.source),
                 &executable,
                 &artifact_dir,
                 &corpus,
                 args.fuzz_seconds,
                 timeout,
-            ));
+            )
         } else {
-            stages.push(StageReport::skipped(fuzz_stage_name(
-                "fuzz_run",
-                &target.source,
-            )));
-        }
+            StageReport::skipped(fuzz_stage_name("fuzz_run", &target.source))
+        };
+        stages.push(fuzz_run.clone());
+
+        stages.push(fuzz_summary_stage(FuzzSummaryRequest {
+            target,
+            executable: &executable,
+            corpus: &corpus,
+            crash_artifact_dir: &artifact_dir,
+            summary_dir: dirs.summary_dir,
+            fuzz_seconds: args.fuzz_seconds,
+            compile_stage: &fuzz_compile,
+            run_stage: &fuzz_run,
+        })?);
     }
 
     Ok(())
@@ -955,6 +970,57 @@ fn fuzz_run_stage(
     let command_line = spec.command_line();
     let result = run_command(spec, timeout);
     stage_from_command_result(name, command_line, result, Some(fuzz_artifact_dir))
+}
+
+fn fuzz_summary_stage(request: FuzzSummaryRequest<'_>) -> Result<StageReport, AppError> {
+    let summary_path = request
+        .summary_dir
+        .join(format!("{}.json", request.target.artifact_id));
+    let summary = FuzzArtifactSummary {
+        source: request.target.source.clone(),
+        artifact_id: request.target.artifact_id.clone(),
+        executable: request.executable.to_path_buf(),
+        corpus: request.corpus.to_vec(),
+        fuzz_seconds: request.fuzz_seconds,
+        crash_artifact_dir: request.crash_artifact_dir.to_path_buf(),
+        crash_artifacts: collect_regular_files(request.crash_artifact_dir),
+        compile_stage: fuzz_stage_summary(request.compile_stage),
+        run_stage: fuzz_stage_summary(request.run_stage),
+    };
+
+    let serialized = serde_json::to_string_pretty(&summary)?;
+    fs::write(&summary_path, serialized).map_err(|source| AppError::WriteArtifact {
+        path: summary_path.clone(),
+        source,
+    })?;
+
+    Ok(StageReport {
+        name: fuzz_stage_name("fuzz_summary", &request.target.source),
+        status: StageStatus::Passed,
+        command: vec![
+            "cppgauntlet".to_string(),
+            "write-fuzz-summary".to_string(),
+            request.target.source.display().to_string(),
+        ],
+        exit_code: Some(0),
+        timed_out: false,
+        warnings: 0,
+        errors: 0,
+        diagnostics: Vec::new(),
+        stdout: format!("wrote fuzz artifact summary: {}", summary_path.display()),
+        stderr: String::new(),
+        artifact: Some(summary_path),
+    })
+}
+
+fn fuzz_stage_summary(stage: &StageReport) -> FuzzStageArtifactSummary {
+    FuzzStageArtifactSummary {
+        name: stage.name.clone(),
+        status: stage.status,
+        exit_code: stage.exit_code,
+        timed_out: stage.timed_out,
+        artifact: stage.artifact.clone(),
+    }
 }
 
 fn selected_fuzz_corpus(default_corpus: &Path, corpus: &[PathBuf]) -> Vec<PathBuf> {
@@ -1351,7 +1417,11 @@ fn discover_fuzz_targets(database: &CompilationDatabase) -> Vec<FuzzTarget> {
 
 fn assign_fuzz_target_ids(targets: &mut [FuzzTarget]) {
     for (index, target) in targets.iter_mut().enumerate() {
-        let path_id = sanitize_path_id(&target.source);
+        let id_source = target
+            .source
+            .strip_prefix(&target.unit.directory)
+            .unwrap_or(&target.source);
+        let path_id = sanitize_path_id(id_source);
         target.artifact_id = format!("{index:03}-{path_id}");
     }
 }
@@ -1439,6 +1509,48 @@ struct FuzzTarget {
     unit: CompilationUnit,
     source: PathBuf,
     artifact_id: String,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct ProjectFuzzDirs<'a> {
+    build_dir: &'a Path,
+    fuzz_dir: &'a Path,
+    artifact_dir: &'a Path,
+    summary_dir: &'a Path,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct FuzzSummaryRequest<'a> {
+    target: &'a FuzzTarget,
+    executable: &'a Path,
+    corpus: &'a [PathBuf],
+    crash_artifact_dir: &'a Path,
+    summary_dir: &'a Path,
+    fuzz_seconds: u64,
+    compile_stage: &'a StageReport,
+    run_stage: &'a StageReport,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct FuzzArtifactSummary {
+    source: PathBuf,
+    artifact_id: String,
+    executable: PathBuf,
+    corpus: Vec<PathBuf>,
+    fuzz_seconds: u64,
+    crash_artifact_dir: PathBuf,
+    crash_artifacts: Vec<PathBuf>,
+    compile_stage: FuzzStageArtifactSummary,
+    run_stage: FuzzStageArtifactSummary,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct FuzzStageArtifactSummary {
+    name: String,
+    status: StageStatus,
+    exit_code: Option<i32>,
+    timed_out: bool,
+    artifact: Option<PathBuf>,
 }
 
 impl ResolvedCheckArgs {
@@ -2333,6 +2445,13 @@ fn collect_files_with_extension(root: &Path, extension: &str) -> Vec<PathBuf> {
 fn discover_coverage_objects(build_dir: &Path) -> Vec<PathBuf> {
     let mut paths = Vec::new();
     collect_files(build_dir, &mut paths, &is_coverage_object);
+    paths.sort();
+    paths
+}
+
+fn collect_regular_files(root: &Path) -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    collect_files(root, &mut paths, &|path| path.is_file());
     paths.sort();
     paths
 }

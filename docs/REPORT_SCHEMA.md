@@ -115,13 +115,14 @@ Current stage names:
 - `fuzz_compile:<source path>`
 - `fuzz_run`
 - `fuzz_run:<source path>`
+- `fuzz_summary:<source path>`
 - `policy`
 - `run`
 - `sanitize_compile`
 - `sanitize_run`
 - `test_command`
 
-`compile:<source path>`, `clang_tidy:<source path>`, `coverage_compile:<source path>`, `fuzz_compile:<source path>`, and `fuzz_run:<source path>` are used for project checks created from `compile_commands.json`.
+`compile:<source path>`, `clang_tidy:<source path>`, `coverage_compile:<source path>`, `fuzz_compile:<source path>`, `fuzz_run:<source path>`, and `fuzz_summary:<source path>` are used for project checks created from `compile_commands.json`.
 
 ## Diagnostics
 

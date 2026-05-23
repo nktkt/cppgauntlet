@@ -119,6 +119,12 @@ pub enum AppError {
         source: std::io::Error,
     },
 
+    #[error("failed to write artifact {path}: {source}")]
+    WriteArtifact {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+
     #[error("failed to write baseline report {path}: {source}")]
     WriteBaseline {
         path: PathBuf,
