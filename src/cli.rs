@@ -157,6 +157,10 @@ pub struct CheckArgs {
     #[arg(long = "changed-line")]
     pub changed_lines: Vec<String>,
 
+    /// Unified diff file used to discover changed source lines for changed-line coverage.
+    #[arg(long = "changed-lines-diff")]
+    pub changed_lines_diff: Option<PathBuf>,
+
     /// Previous CppGauntlet JSON report to use as a diagnostic baseline.
     #[arg(long)]
     pub baseline: Option<PathBuf>,

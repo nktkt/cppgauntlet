@@ -84,6 +84,7 @@ impl ProjectConfig {
                 min_line_coverage: None,
                 min_changed_line_coverage: None,
                 changed_lines: Vec::new(),
+                changed_lines_diff: None,
                 fail_on_new_diagnostics: Some(false),
             }),
         }
@@ -220,6 +221,12 @@ impl ProjectConfig {
             .unwrap_or_default()
     }
 
+    pub fn changed_lines_diff(&self) -> Option<PathBuf> {
+        self.policy
+            .as_ref()
+            .and_then(|policy| policy.changed_lines_diff.clone())
+    }
+
     pub fn fail_on_new_diagnostics(&self) -> Option<bool> {
         self.policy
             .as_ref()
@@ -316,6 +323,9 @@ pub struct PolicyConfig {
 
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub changed_lines: Vec<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub changed_lines_diff: Option<PathBuf>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fail_on_new_diagnostics: Option<bool>,

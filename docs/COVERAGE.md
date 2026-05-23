@@ -113,14 +113,24 @@ cppgauntlet check main.cpp \
 - `--coverage-source`: pass a source path to `llvm-cov export`; repeat to limit coverage output to selected files
 - `--coverage-object`: pass an object or executable to `llvm-cov export`; repeat to override automatic object discovery
 - `--changed-line`: pass a changed source line in `<path>:<line>` form; repeat to calculate changed-line coverage
+- `--changed-lines-diff`: pass a unified diff file to discover changed source lines automatically
 - `--llvm-cov-bin`: override the `llvm-cov` executable path
 - `--llvm-profdata-bin`: override the `llvm-profdata` executable path
 
-Passing either tool override, source filter, object override, or changed-line input also enables coverage.
+Passing either tool override, source filter, object override, changed-line input, or changed-lines diff also enables coverage.
 
 When no sources are configured, CppGauntlet uses the checked source file for single-file checks, all compilation database entries for raw `compile_commands.json` checks, and no explicit source filter for CMake checks. When no objects are configured, CppGauntlet uses the generated single-file executable, generated compilation database coverage objects, or discovered CMake coverage objects.
 
 When changed lines are supplied, CppGauntlet reads full `llvm-cov export` file data instead of `--summary-only` output and stores the result in `summary.coverage.changed_lines`. Non-coverable changed lines that are not present in LLVM coverage file data are ignored.
+
+To discover changed lines from Git in CI, write a unified diff and pass it to CppGauntlet:
+
+```bash
+git diff -U0 origin/main...HEAD > .cppgauntlet/changed.diff
+cppgauntlet check . --changed-lines-diff .cppgauntlet/changed.diff --min-changed-line-coverage 80
+```
+
+The diff parser records added lines from the new file side of each hunk. Deleted-only hunks do not add changed lines because they have no coverable line in the current source tree.
 
 ## Configuration
 

@@ -796,6 +796,123 @@ fn parse_changed_lines(values: Vec<String>) -> Result<Vec<ChangedLine>, AppError
     Ok(changed_lines)
 }
 
+fn read_changed_lines_diff(path: &Path) -> Result<Vec<ChangedLine>, AppError> {
+    let contents = fs::read_to_string(path).map_err(|source| AppError::ReadChangedLinesDiff {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    parse_changed_lines_diff(path, &contents)
+}
+
+fn parse_changed_lines_diff(path: &Path, contents: &str) -> Result<Vec<ChangedLine>, AppError> {
+    let mut changed_lines = Vec::new();
+    let mut seen = HashSet::new();
+    let mut current_file: Option<PathBuf> = None;
+    let mut new_line: Option<u64> = None;
+
+    for raw_line in contents.lines() {
+        if raw_line.starts_with("diff --git ") {
+            current_file = None;
+            new_line = None;
+            continue;
+        }
+
+        if new_line.is_none() && raw_line.starts_with("--- ") {
+            continue;
+        }
+
+        if let Some(file) = raw_line.strip_prefix("+++ ") {
+            current_file = parse_diff_file(file);
+            new_line = None;
+            continue;
+        }
+
+        if raw_line.starts_with("index ")
+            || raw_line.starts_with("new file mode ")
+            || raw_line.starts_with("deleted file mode ")
+            || raw_line.starts_with("similarity index ")
+            || raw_line.starts_with("rename from ")
+            || raw_line.starts_with("rename to ")
+        {
+            continue;
+        }
+
+        if raw_line.starts_with("@@") {
+            let line = parse_diff_hunk_new_start(raw_line).ok_or_else(|| {
+                AppError::ParseChangedLinesDiff {
+                    path: path.to_path_buf(),
+                    reason: format!("invalid hunk header '{raw_line}'"),
+                }
+            })?;
+            new_line = Some(line);
+            continue;
+        }
+
+        let Some(line) = new_line else {
+            continue;
+        };
+        let Some(file) = &current_file else {
+            continue;
+        };
+
+        if raw_line.starts_with('+') && !raw_line.starts_with("+++") {
+            let changed_line = ChangedLine {
+                path: file.clone(),
+                line,
+            };
+            if seen.insert(changed_line.clone()) {
+                changed_lines.push(changed_line);
+            }
+            new_line = Some(line + 1);
+        } else if raw_line.starts_with('-') && !raw_line.starts_with("---") {
+            continue;
+        } else if raw_line.starts_with(' ') {
+            new_line = Some(line + 1);
+        } else if raw_line.starts_with('\\') {
+            continue;
+        } else if !raw_line.is_empty() {
+            return Err(AppError::ParseChangedLinesDiff {
+                path: path.to_path_buf(),
+                reason: format!("unexpected diff line '{raw_line}'"),
+            });
+        }
+    }
+
+    Ok(changed_lines)
+}
+
+fn parse_diff_file(value: &str) -> Option<PathBuf> {
+    let token = value.split_whitespace().next()?;
+    if token == "/dev/null" {
+        return None;
+    }
+
+    Some(PathBuf::from(
+        token
+            .strip_prefix("b/")
+            .or_else(|| token.strip_prefix("a/"))
+            .unwrap_or(token),
+    ))
+}
+
+fn parse_diff_hunk_new_start(value: &str) -> Option<u64> {
+    let plus_index = value.find('+')?;
+    let after_plus = &value[plus_index + 1..];
+    let end = after_plus
+        .find(|ch: char| ch == ',' || ch.is_whitespace())
+        .unwrap_or(after_plus.len());
+    after_plus[..end].parse::<u64>().ok()
+}
+
+fn append_unique_changed_lines(target: &mut Vec<ChangedLine>, additional: Vec<ChangedLine>) {
+    let mut seen = target.iter().cloned().collect::<HashSet<_>>();
+    for changed_line in additional {
+        if seen.insert(changed_line.clone()) {
+            target.push(changed_line);
+        }
+    }
+}
+
 enum CheckTarget {
     SourceFile(PathBuf),
     CompilationDatabase(CompilationDatabase),
@@ -892,6 +1009,7 @@ impl ResolvedCheckArgs {
         let config_min_line_coverage = config.min_line_coverage();
         let config_min_changed_line_coverage = config.min_changed_line_coverage();
         let config_changed_lines = config.changed_lines();
+        let config_changed_lines_diff = config.changed_lines_diff();
         let config_fail_on_new_diagnostics = config.fail_on_new_diagnostics();
         let max_analyzer_findings = args.max_analyzer_findings.or(config_max_analyzer_findings);
         let cli_requested_clang_tidy = args.clang_tidy
@@ -913,7 +1031,11 @@ impl ResolvedCheckArgs {
         } else {
             args.changed_lines.clone()
         };
-        let changed_lines = parse_changed_lines(changed_line_values)?;
+        let mut changed_lines = parse_changed_lines(changed_line_values)?;
+        let changed_lines_diff = args.changed_lines_diff.or(config_changed_lines_diff);
+        if let Some(path) = changed_lines_diff {
+            append_unique_changed_lines(&mut changed_lines, read_changed_lines_diff(&path)?);
+        }
         let cli_requested_coverage = args.coverage
             || args.llvm_cov_bin.is_some()
             || args.llvm_profdata_bin.is_some()

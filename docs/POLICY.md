@@ -74,3 +74,4 @@ When at least one policy is configured, CppGauntlet appends a `policy` stage aft
 Warnings still appear in the report summary even when no policy gate is configured. Use `max_warnings` when warnings should fail CI.
 Setting `max_analyzer_findings` enables `clang-tidy`; use `static_analysis.clang_tidy_bin` and `static_analysis.clang_tidy_checks` to customize that analyzer.
 `--changed-line` accepts `<path>:<line>` and can be repeated. Non-coverable changed lines that do not appear in LLVM's coverage file data are ignored; if no supplied changed lines are coverable, changed-line coverage is reported as 100 percent.
+`--changed-lines-diff` accepts a unified diff file and discovers added lines from the new-file side of each hunk. Deleted-only hunks are ignored because they have no coverable line in the current source tree.

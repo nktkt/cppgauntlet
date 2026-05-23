@@ -49,6 +49,7 @@ cargo run -- check main.cpp --max-warnings 0
 cargo run -- check main.cpp --max-analyzer-findings 0
 cargo run -- check main.cpp --coverage --min-line-coverage 80
 cargo run -- check main.cpp --changed-line src/main.cpp:42 --min-changed-line-coverage 90
+cargo run -- check ./project --changed-lines-diff .cppgauntlet/changed.diff --min-changed-line-coverage 80
 cargo run -- check main.cpp --baseline .cppgauntlet/baseline.json --fail-on-new-diagnostics
 cargo run -- baseline update --report .cppgauntlet/cppgauntlet-report.json --output .cppgauntlet/baseline.json
 cargo run -- baseline update --report current.json --previous .cppgauntlet/baseline.json --output .cppgauntlet/baseline.json
@@ -74,6 +75,7 @@ The current JSON report schema is version `3`. Each stage records:
 - warning and error counts
 - structured diagnostics extracted from compiler, sanitizer, and analyzer output
 - optional coverage summary
+- changed-line coverage from explicit lines or unified diffs
 - raw stdout and stderr
 - generated artifact path
 
@@ -105,7 +107,6 @@ The first version will focus on a small, useful workflow:
 
 ## Future Scope
 
-- Diff discovery for changed-line coverage inputs.
 - libFuzzer workflows.
 - CI-friendly exit codes.
 - Quality scoring for trend tracking.
@@ -160,12 +161,13 @@ policy:
   min_line_coverage: null
   min_changed_line_coverage: null
   changed_lines: []
+  changed_lines_diff: null
   fail_on_new_diagnostics: false
 ```
 
 ## Project Status
 
-CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, custom test commands, optional `clang-tidy` analysis, single-file, compilation database, and CMake/CTest LLVM coverage, diagnostic baselines with changed-diagnostic update summaries, CI policy gates including changed-line coverage, environment diagnostics, JSON reports with diagnostic fingerprints and parsed source locations, Markdown reports, HTML reports, SARIF output, and GitHub Code Scanning examples.
+CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, custom test commands, optional `clang-tidy` analysis, single-file, compilation database, and CMake/CTest LLVM coverage, changed-line coverage from explicit lines or unified diffs, diagnostic baselines with changed-diagnostic update summaries, CI policy gates including changed-line coverage, environment diagnostics, JSON reports with diagnostic fingerprints and parsed source locations, Markdown reports, HTML reports, SARIF output, and GitHub Code Scanning examples.
 
 ## License
 

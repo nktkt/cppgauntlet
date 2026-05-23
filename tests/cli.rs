@@ -1057,6 +1057,62 @@ fn check_policy_can_fail_on_changed_line_coverage() {
 }
 
 #[test]
+#[cfg(unix)]
+fn check_policy_can_discover_changed_lines_from_diff() {
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "hello.cpp");
+    fs::write(
+        temp.path().join("changes.diff"),
+        r#"diff --git a/hello.cpp b/hello.cpp
+--- a/hello.cpp
++++ b/hello.cpp
+@@ -0,0 +1,2 @@
++int main() {
++    return 0;
+"#,
+    )
+    .unwrap();
+    let compiler = make_fake_compiler(temp.path(), "diff-line-coverage-clang++");
+    let llvm_profdata = make_fake_profdata(temp.path(), "diff-line-llvm-profdata");
+    let llvm_cov = make_fake_llvm_cov_with_changed_lines(temp.path(), "diff-line-llvm-cov");
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args([
+            "check",
+            "hello.cpp",
+            "--compiler",
+            compiler.to_str().unwrap(),
+            "--sanitizers",
+            "none",
+            "--changed-lines-diff",
+            "changes.diff",
+            "--min-changed-line-coverage",
+            "60",
+            "--llvm-profdata-bin",
+            llvm_profdata.to_str().unwrap(),
+            "--llvm-cov-bin",
+            llvm_cov.to_str().unwrap(),
+        ])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("policy: failed"));
+
+    let value = read_report(temp.path());
+    assert_eq!(value["summary"]["coverage"]["changed_lines"]["covered"], 1);
+    assert_eq!(value["summary"]["coverage"]["changed_lines"]["count"], 2);
+    assert_eq!(
+        value["summary"]["coverage"]["changed_lines"]["percent"],
+        50.0
+    );
+    assert!(!stage(&value, "coverage_report")["command"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|arg| arg == "--summary-only"));
+}
+
+#[test]
 fn check_baseline_marks_existing_diagnostics_without_failing() {
     if !clang_available() {
         return;

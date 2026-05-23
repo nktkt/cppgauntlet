@@ -44,6 +44,15 @@ pub enum AppError {
     #[error("invalid changed line '{0}'. Expected <path>:<line>")]
     InvalidChangedLine(String),
 
+    #[error("failed to read changed-lines diff {path}: {source}")]
+    ReadChangedLinesDiff {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+
+    #[error("failed to parse changed-lines diff {path}: {reason}")]
+    ParseChangedLinesDiff { path: PathBuf, reason: String },
+
     #[error("--fail-on-new-diagnostics requires --baseline or baseline.path")]
     BaselineRequired,
 
