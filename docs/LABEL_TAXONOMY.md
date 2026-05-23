@@ -10,9 +10,12 @@ Use support stage labels to show where an issue or pull request is in the mainta
 | --- | --- | --- |
 | `needs-triage` | issues | A maintainer has not classified priority, area, or next action yet. |
 | `needs-review` | pull requests | The pull request is ready for maintainer review. |
+| `status: blocked` | issues and pull requests | Progress is waiting on an external dependency, decision, or missing information that maintainers cannot resolve immediately. |
 | `status: draft` | pull requests | The pull request is open but not ready for review. |
+| `status: needs-info` | issues and pull requests | The next action belongs to the reporter or contributor. |
+| `status: stale` | issues and pull requests | The thread has been inactive and needs confirmation before more work is scheduled. |
 
-Only one pull request stage label should be active at a time: `needs-review` or `status: draft`.
+Only one pull request stage label should be active at a time: `needs-review`, `status: draft`, `status: needs-info`, `status: blocked`, or `status: stale`.
 
 ## Work Type Labels
 
@@ -71,6 +74,8 @@ Use area labels to route work to the relevant subsystem.
 ## Automation Rules
 
 Issue automation applies `needs-triage`, `priority: needs-priority` when no priority exists, and area labels from the issue title and body.
+
+Issue lifecycle guidance lives in [ISSUE_LIFECYCLE.md](ISSUE_LIFECYCLE.md). Maintainers apply `status: needs-info`, `status: blocked`, and `status: stale` manually after leaving a comment that names the next action or freshness check.
 
 Both issue and pull request automation create missing managed release labels so maintainers can apply them consistently.
 

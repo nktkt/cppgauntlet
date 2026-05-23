@@ -327,6 +327,9 @@ fn contributor_automation_workflow_is_documented() {
     assert!(workflow.contains("actions/github-script@v8"));
     assert!(workflow.contains("needs-triage"));
     assert!(workflow.contains("needs-review"));
+    assert!(workflow.contains("status: blocked"));
+    assert!(workflow.contains("status: needs-info"));
+    assert!(workflow.contains("status: stale"));
     assert!(workflow.contains("priority: needs-priority"));
     assert!(workflow.contains("priority: critical"));
     assert!(workflow.contains("priority: high"));
@@ -350,6 +353,10 @@ fn contributor_automation_workflow_is_documented() {
     assert!(docs.contains("does not checkout or execute pull request code"));
     assert!(docs.contains("needs-triage"));
     assert!(docs.contains("needs-review"));
+    assert!(docs.contains("ISSUE_LIFECYCLE.md"));
+    assert!(docs.contains("status: needs-info"));
+    assert!(docs.contains("status: blocked"));
+    assert!(docs.contains("status: stale"));
     assert!(docs.contains("priority: needs-priority"));
     assert!(docs.contains("priority: critical"));
     assert!(docs.contains("release: breaking"));
@@ -366,7 +373,10 @@ fn contributor_automation_workflow_is_documented() {
     assert!(taxonomy.contains("## Escalation Guidance"));
     assert!(taxonomy.contains("`needs-triage`"));
     assert!(taxonomy.contains("`needs-review`"));
+    assert!(taxonomy.contains("`status: blocked`"));
     assert!(taxonomy.contains("`status: draft`"));
+    assert!(taxonomy.contains("`status: needs-info`"));
+    assert!(taxonomy.contains("`status: stale`"));
     assert!(taxonomy.contains("`bug`"));
     assert!(taxonomy.contains("`enhancement`"));
     assert!(taxonomy.contains("`priority: needs-priority`"));
@@ -390,6 +400,7 @@ fn contributor_automation_workflow_is_documented() {
     assert!(taxonomy.contains("`area: static-analysis`"));
     assert!(taxonomy.contains("`area: tests`"));
     assert!(taxonomy.contains("examples/github-actions/**"));
+    assert!(taxonomy.contains("ISSUE_LIFECYCLE.md"));
     assert!(taxonomy.contains("Use lower-case labels"));
     assert!(taxonomy.contains("Use `priority: <name>`"));
     assert!(taxonomy.contains("Use `release: <name>`"));
@@ -397,12 +408,25 @@ fn contributor_automation_workflow_is_documented() {
 
     let contributing = fs::read_to_string("CONTRIBUTING.md").unwrap();
     assert!(contributing.contains("docs/CONTRIBUTOR_AUTOMATION.md"));
+    assert!(contributing.contains("docs/ISSUE_LIFECYCLE.md"));
 
     let readme = fs::read_to_string("README.md").unwrap();
     assert!(readme.contains("[docs/CONTRIBUTOR_AUTOMATION.md](docs/CONTRIBUTOR_AUTOMATION.md)"));
     assert!(readme.contains("[docs/LABEL_TAXONOMY.md](docs/LABEL_TAXONOMY.md)"));
+    assert!(readme.contains("[docs/ISSUE_LIFECYCLE.md](docs/ISSUE_LIFECYCLE.md)"));
     assert!(readme.contains("documented label taxonomy"));
+    assert!(readme.contains("issue lifecycle guidance"));
     assert!(readme.contains("priority escalation guidance"));
+
+    let lifecycle = fs::read_to_string("docs/ISSUE_LIFECYCLE.md").unwrap();
+    assert!(lifecycle.contains("# Issue Lifecycle"));
+    assert!(lifecycle.contains("`status: needs-info`"));
+    assert!(lifecycle.contains("`status: blocked`"));
+    assert!(lifecycle.contains("`status: stale`"));
+    assert!(lifecycle.contains("30 days without reporter response"));
+    assert!(lifecycle.contains("60 days without maintainer activity"));
+    assert!(lifecycle.contains("90 days without maintainer activity"));
+    assert!(lifecycle.contains("Do not close blocked issues"));
 }
 
 #[test]

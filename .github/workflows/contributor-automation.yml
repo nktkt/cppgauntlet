@@ -27,11 +27,14 @@ jobs:
 
             const labelDefinitions = {
               "needs-triage": { color: "fbca04", description: "Needs maintainer triage" },
+              "status: blocked": { color: "d93f0b", description: "Waiting on external input, dependency, or decision" },
               "priority: needs-priority": { color: "fbca04", description: "Needs maintainer priority assignment" },
               "priority: critical": { color: "b60205", description: "Release-blocking or security-sensitive work" },
               "priority: high": { color: "d93f0b", description: "Important regression or blocked workflow" },
               "priority: medium": { color: "fbca04", description: "Useful work with no immediate release risk" },
               "priority: low": { color: "cfd3d7", description: "Opportunistic cleanup or polish" },
+              "status: needs-info": { color: "fbca04", description: "Waiting for reporter or contributor details" },
+              "status: stale": { color: "cfd3d7", description: "Inactive issue that needs confirmation before more work" },
               "release: breaking": { color: "b60205", description: "Breaking change for generated release notes" },
               "release: highlight": { color: "5319e7", description: "Highlight in generated release notes" },
               "release: skip": { color: "ededed", description: "Exclude from generated release notes" },
@@ -127,7 +130,10 @@ jobs:
 
             const labelDefinitions = {
               "needs-review": { color: "fbca04", description: "Ready for maintainer review" },
+              "status: blocked": { color: "d93f0b", description: "Waiting on external input, dependency, or decision" },
               "status: draft": { color: "cfd3d7", description: "Draft pull request" },
+              "status: needs-info": { color: "fbca04", description: "Waiting for reporter or contributor details" },
+              "status: stale": { color: "cfd3d7", description: "Inactive pull request that needs confirmation before more work" },
               "area: ci": { color: "0e8a16", description: "CI and GitHub Actions integration" },
               "area: docs": { color: "0075ca", description: "Documentation" },
               "area: tests": { color: "c2e0c6", description: "Tests and fixtures" },

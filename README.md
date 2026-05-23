@@ -103,6 +103,7 @@ See [docs/GITHUB_CODE_SCANNING.md](docs/GITHUB_CODE_SCANNING.md) for GitHub Code
 See [docs/RELEASE.md](docs/RELEASE.md) for the release checklist.
 See [docs/CONTRIBUTOR_AUTOMATION.md](docs/CONTRIBUTOR_AUTOMATION.md) for issue labeling and pull request checks.
 See [docs/LABEL_TAXONOMY.md](docs/LABEL_TAXONOMY.md) for label meanings and triage stages.
+See [docs/ISSUE_LIFECYCLE.md](docs/ISSUE_LIFECYCLE.md) for stale and blocked issue guidance.
 
 ## MVP Scope
 
@@ -182,7 +183,7 @@ policy:
 
 ## Project Status
 
-CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, custom test commands, optional `clang-tidy` analysis, single-file, compilation database, and CMake/CTest LLVM coverage, changed-line coverage from explicit lines or unified diffs, reusable GitHub Actions examples and matrix workflows for compile database, CMake coverage, sanitizer, and C++ standard checks, single-file and project-discovered libFuzzer smoke workflows with per-target artifact summaries, CI crash artifact uploads, and scheduled corpus retention examples, diagnostic baselines with changed-diagnostic update summaries, CI policy gates including changed-line coverage, baseline review artifacts and PR comments for GitHub Actions, environment diagnostics, JSON reports with diagnostic fingerprints and parsed source locations, schema compatibility tests and release gates for older report and baseline files, Markdown reports, HTML reports, SARIF output, GitHub Code Scanning examples, contributor templates, contributor automation with documented label taxonomy and priority escalation guidance, release packaging metadata, release archive smoke tests, CycloneDX release SBOMs, signed release artifact attestations, generated GitHub release notes with a repository policy, and automated macOS/Linux release builds.
+CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, custom test commands, optional `clang-tidy` analysis, single-file, compilation database, and CMake/CTest LLVM coverage, changed-line coverage from explicit lines or unified diffs, reusable GitHub Actions examples and matrix workflows for compile database, CMake coverage, sanitizer, and C++ standard checks, single-file and project-discovered libFuzzer smoke workflows with per-target artifact summaries, CI crash artifact uploads, and scheduled corpus retention examples, diagnostic baselines with changed-diagnostic update summaries, CI policy gates including changed-line coverage, baseline review artifacts and PR comments for GitHub Actions, environment diagnostics, JSON reports with diagnostic fingerprints and parsed source locations, schema compatibility tests and release gates for older report and baseline files, Markdown reports, HTML reports, SARIF output, GitHub Code Scanning examples, contributor templates, contributor automation with documented label taxonomy, issue lifecycle guidance, and priority escalation guidance, release packaging metadata, release archive smoke tests, CycloneDX release SBOMs, signed release artifact attestations, generated GitHub release notes with a repository policy, and automated macOS/Linux release builds.
 
 ## Contributing
 

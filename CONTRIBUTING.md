@@ -44,6 +44,8 @@ cargo test
 
 Use the bug report template for broken behavior and the feature request template for product or workflow proposals.
 
+Issue lifecycle guidance lives in [docs/ISSUE_LIFECYCLE.md](docs/ISSUE_LIFECYCLE.md). Maintainers use it when applying `status: needs-info`, `status: blocked`, or `status: stale`.
+
 Good issues include:
 
 - operating system and tool versions
