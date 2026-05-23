@@ -318,6 +318,9 @@ fn release_packaging_metadata_is_documented() {
     assert!(release.contains(".github/workflows/release.yml"));
     assert!(release.contains("cppgauntlet-<version>-<platform>-<arch>.tar.gz"));
     assert!(release.contains("cppgauntlet-<version>-<platform>-<arch>.intoto.jsonl"));
+    assert!(release.contains("Generated Release Notes"));
+    assert!(release.contains("releases/generate-notes"));
+    assert!(release.contains("--notes-file <release-notes.md>"));
     assert!(release.contains("gh attestation verify"));
     assert!(release.contains("--signer-workflow nktkt/cppgauntlet/.github/workflows/release.yml"));
 }
@@ -341,6 +344,10 @@ fn release_build_workflow_is_documented() {
     assert!(workflow.contains("subject-path:"));
     assert!(workflow.contains(".intoto.jsonl"));
     assert!(workflow.contains("steps.attest.outputs.bundle-path"));
+    assert!(workflow.contains("Generate release notes"));
+    assert!(workflow.contains("releases/generate-notes"));
+    assert!(workflow.contains("-release-notes.md"));
+    assert!(workflow.contains("--notes-file"));
     assert!(workflow.contains("actions/upload-artifact@v4"));
     assert!(workflow.contains("gh release upload"));
     assert!(workflow.contains("shasum -a 256"));
@@ -354,6 +361,7 @@ fn release_build_workflow_is_documented() {
 
     let readme = fs::read_to_string("README.md").unwrap();
     assert!(readme.contains("signed release artifact attestations"));
+    assert!(readme.contains("generated GitHub release notes"));
     assert!(readme.contains("automated macOS/Linux release builds"));
 }
 

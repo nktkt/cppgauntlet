@@ -88,6 +88,31 @@ jobs:
           cp "${{ steps.attest.outputs.bundle-path }}" "$provenance"
           echo "provenance=$provenance" >> "$GITHUB_OUTPUT"
 
+      - name: Generate release notes
+        id: release_notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          notes="dist/${{ steps.package.outputs.name }}-release-notes.md"
+
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+              -X POST \
+              -f tag_name="${GITHUB_REF_NAME}" \
+              -f target_commitish="${GITHUB_SHA}" \
+              --jq '.body' > "$notes"
+          else
+            {
+              echo "Manual CppGauntlet release build."
+              echo
+              echo "Commit: ${GITHUB_SHA}"
+            } > "$notes"
+          fi
+
+          echo "notes=$notes" >> "$GITHUB_OUTPUT"
+
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
@@ -96,6 +121,7 @@ jobs:
             ${{ steps.package.outputs.archive }}
             ${{ steps.package.outputs.checksum }}
             ${{ steps.provenance.outputs.provenance }}
+            ${{ steps.release_notes.outputs.notes }}
 
       - name: Publish GitHub release assets
         if: startsWith(github.ref, 'refs/tags/')
@@ -109,7 +135,7 @@ jobs:
           gh release view "$tag" >/dev/null 2>&1 \
             || gh release create "$tag" \
               --title "$tag" \
-              --notes "Automated CppGauntlet release build." \
+              --notes-file "${{ steps.release_notes.outputs.notes }}" \
             || gh release view "$tag" >/dev/null
 
           gh release upload "$tag" \

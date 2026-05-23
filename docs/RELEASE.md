@@ -1,6 +1,6 @@
 # Release Checklist
 
-CppGauntlet has automated GitHub release builds for macOS and Linux. The release workflow builds release binaries, packages archives, writes SHA-256 checksums, creates signed GitHub artifact attestations, uploads workflow artifacts, and attaches assets to tagged GitHub releases.
+CppGauntlet has automated GitHub release builds for macOS and Linux. The release workflow builds release binaries, packages archives, writes SHA-256 checksums, creates signed GitHub artifact attestations, generates release notes from merged pull requests, uploads workflow artifacts, and attaches assets to tagged GitHub releases.
 
 ## Version Metadata
 
@@ -40,7 +40,7 @@ Inspect the package file list and make sure it includes:
 2. Push a tag matching `v*`, for example `v0.1.0`.
 3. Wait for the `Release` and `CI` workflows to pass on the tag.
 4. Confirm the generated macOS and Linux archives, `.sha256` files, and `.intoto.jsonl` attestation bundles are attached to the GitHub release.
-5. Include installation commands and a short compatibility note in the release notes.
+5. Review the generated release notes and add installation commands or compatibility notes when needed.
 
 ## Automated Binary Builds
 
@@ -73,6 +73,32 @@ cppgauntlet-<version>-<platform>-<arch>.tar.gz
 ```
 
 Each archive is paired with a `.sha256` checksum file. Tag builds upload assets to the GitHub release with `gh release upload --clobber`.
+
+## Generated Release Notes
+
+Tag builds call GitHub's generated release notes API before creating the release:
+
+```bash
+gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+  -X POST \
+  -f tag_name="${GITHUB_REF_NAME}" \
+  -f target_commitish="${GITHUB_SHA}" \
+  --jq '.body'
+```
+
+The generated body is written to:
+
+```text
+cppgauntlet-<version>-<platform>-<arch>-release-notes.md
+```
+
+The release creation step passes that file to:
+
+```bash
+gh release create "$tag" --title "$tag" --notes-file <release-notes.md>
+```
+
+Manual `workflow_dispatch` builds write a short manual-build note instead of creating a GitHub release.
 
 ## Artifact Signing
 
@@ -123,3 +149,4 @@ Planned follow-up automation:
 - crates.io publication
 - Homebrew formula update
 - release SBOM generation
+- release notes policy configuration
