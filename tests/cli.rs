@@ -129,6 +129,34 @@ fn contribution_metadata_is_documented() {
 }
 
 #[test]
+fn release_packaging_metadata_is_documented() {
+    let cargo = fs::read_to_string("Cargo.toml").unwrap();
+    assert!(cargo.contains("readme = \"README.md\""));
+    assert!(cargo.contains("homepage = \"https://github.com/nktkt/cppgauntlet\""));
+    assert!(
+        cargo.contains("documentation = \"https://github.com/nktkt/cppgauntlet/tree/main/docs\"")
+    );
+    assert!(cargo.contains("keywords = [\"cpp\", \"clang\", \"llvm\", \"ci\", \"testing\"]"));
+    assert!(cargo.contains("categories = ["));
+    assert!(cargo.contains("\"command-line-utilities\""));
+    assert!(cargo.contains("\"development-tools::testing\""));
+    assert!(cargo.contains("\"docs/**\""));
+    assert!(cargo.contains("\"examples/**\""));
+
+    let readme = fs::read_to_string("README.md").unwrap();
+    assert!(readme.contains("[docs/INSTALLATION.md](docs/INSTALLATION.md)"));
+    assert!(readme.contains("[docs/RELEASE.md](docs/RELEASE.md)"));
+
+    let installation = fs::read_to_string("docs/INSTALLATION.md").unwrap();
+    assert!(installation.contains("cargo install --git https://github.com/nktkt/cppgauntlet"));
+    assert!(installation.contains("cppgauntlet doctor"));
+
+    let release = fs::read_to_string("docs/RELEASE.md").unwrap();
+    assert!(release.contains("cargo package --list"));
+    assert!(release.contains("cargo package --no-verify"));
+}
+
+#[test]
 #[cfg(unix)]
 fn doctor_reports_custom_required_tool_available() {
     let temp = tempdir().unwrap();

@@ -193,12 +193,12 @@ Exit criteria:
 
 ## Near-Term Priorities
 
-1. Add release packaging metadata and installation docs.
-2. Add baseline automation examples for reviewable CI artifact workflows.
-3. Add schema compatibility tests for older baseline and report files.
-4. Add GitHub Actions examples for diff-based changed-line coverage.
-5. Add project-level fuzz target discovery.
-6. Add contributor workflow automation for issue labels and PR checks.
+1. Add baseline automation examples for reviewable CI artifact workflows.
+2. Add schema compatibility tests for older baseline and report files.
+3. Add GitHub Actions examples for diff-based changed-line coverage.
+4. Add project-level fuzz target discovery.
+5. Add contributor workflow automation for issue labels and PR checks.
+6. Add automated release builds for macOS and Linux.
 
 ## Non-Goals
 

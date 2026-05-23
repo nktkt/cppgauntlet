@@ -81,6 +81,7 @@ The current JSON report schema is version `3`. Each stage records:
 - generated artifact path
 
 See [docs/REPORT_SCHEMA.md](docs/REPORT_SCHEMA.md) for the current report contract.
+See [docs/INSTALLATION.md](docs/INSTALLATION.md) for install options and tool requirements.
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the current configuration file format.
 See [docs/DOCTOR.md](docs/DOCTOR.md) for environment diagnostics.
 See [docs/COMPILATION_DATABASE.md](docs/COMPILATION_DATABASE.md) for project checks through `compile_commands.json`.
@@ -94,6 +95,7 @@ See [docs/BASELINE.md](docs/BASELINE.md) for diagnostic baselines.
 See [docs/ARTIFACT_REPORTS.md](docs/ARTIFACT_REPORTS.md) for Markdown and HTML reports.
 See [docs/SARIF.md](docs/SARIF.md) for SARIF output.
 See [docs/GITHUB_CODE_SCANNING.md](docs/GITHUB_CODE_SCANNING.md) for GitHub Code Scanning integration.
+See [docs/RELEASE.md](docs/RELEASE.md) for the release checklist.
 
 ## MVP Scope
 
@@ -173,7 +175,7 @@ policy:
 
 ## Project Status
 
-CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, custom test commands, optional `clang-tidy` analysis, single-file, compilation database, and CMake/CTest LLVM coverage, changed-line coverage from explicit lines or unified diffs, libFuzzer smoke workflows, diagnostic baselines with changed-diagnostic update summaries, CI policy gates including changed-line coverage, environment diagnostics, JSON reports with diagnostic fingerprints and parsed source locations, Markdown reports, HTML reports, SARIF output, GitHub Code Scanning examples, and contributor templates.
+CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, custom test commands, optional `clang-tidy` analysis, single-file, compilation database, and CMake/CTest LLVM coverage, changed-line coverage from explicit lines or unified diffs, libFuzzer smoke workflows, diagnostic baselines with changed-diagnostic update summaries, CI policy gates including changed-line coverage, environment diagnostics, JSON reports with diagnostic fingerprints and parsed source locations, Markdown reports, HTML reports, SARIF output, GitHub Code Scanning examples, contributor templates, and release packaging metadata.
 
 ## Contributing
 
