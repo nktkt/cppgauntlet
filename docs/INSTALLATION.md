@@ -50,6 +50,14 @@ Verify the archive first with the matching `.sha256` file:
 shasum -a 256 -c cppgauntlet-v0.1.0-linux-x86_64.tar.gz.sha256
 ```
 
+Tagged release assets also include GitHub artifact attestations. Verify provenance with:
+
+```bash
+gh attestation verify cppgauntlet-v0.1.0-linux-x86_64.tar.gz \
+  --repo nktkt/cppgauntlet \
+  --signer-workflow nktkt/cppgauntlet/.github/workflows/release.yml
+```
+
 ## Install From a Local Checkout
 
 ```bash

@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   binary:
@@ -69,6 +71,23 @@ jobs:
           echo "archive=$archive" >> "$GITHUB_OUTPUT"
           echo "checksum=$checksum" >> "$GITHUB_OUTPUT"
 
+      - name: Attest release artifacts
+        id: attest
+        uses: actions/attest-build-provenance@v4.1.0
+        with:
+          subject-path: |
+            ${{ steps.package.outputs.archive }}
+            ${{ steps.package.outputs.checksum }}
+
+      - name: Name attestation bundle
+        id: provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          provenance="dist/${{ steps.package.outputs.name }}.intoto.jsonl"
+          cp "${{ steps.attest.outputs.bundle-path }}" "$provenance"
+          echo "provenance=$provenance" >> "$GITHUB_OUTPUT"
+
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
@@ -76,6 +95,7 @@ jobs:
           path: |
             ${{ steps.package.outputs.archive }}
             ${{ steps.package.outputs.checksum }}
+            ${{ steps.provenance.outputs.provenance }}
 
       - name: Publish GitHub release assets
         if: startsWith(github.ref, 'refs/tags/')
@@ -95,4 +115,5 @@ jobs:
           gh release upload "$tag" \
             "${{ steps.package.outputs.archive }}" \
             "${{ steps.package.outputs.checksum }}" \
+            "${{ steps.provenance.outputs.provenance }}" \
             --clobber

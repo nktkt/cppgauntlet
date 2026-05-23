@@ -317,6 +317,9 @@ fn release_packaging_metadata_is_documented() {
     assert!(release.contains("cargo package --no-verify"));
     assert!(release.contains(".github/workflows/release.yml"));
     assert!(release.contains("cppgauntlet-<version>-<platform>-<arch>.tar.gz"));
+    assert!(release.contains("cppgauntlet-<version>-<platform>-<arch>.intoto.jsonl"));
+    assert!(release.contains("gh attestation verify"));
+    assert!(release.contains("--signer-workflow nktkt/cppgauntlet/.github/workflows/release.yml"));
 }
 
 #[test]
@@ -328,10 +331,16 @@ fn release_build_workflow_is_documented() {
     assert!(workflow.contains("tags:"));
     assert!(workflow.contains("\"v*\""));
     assert!(workflow.contains("workflow_dispatch"));
+    assert!(workflow.contains("id-token: write"));
+    assert!(workflow.contains("attestations: write"));
     assert!(workflow.contains("ubuntu-latest"));
     assert!(workflow.contains("macos-latest"));
     assert!(workflow.contains("cargo test --locked"));
     assert!(workflow.contains("cargo build --release --locked"));
+    assert!(workflow.contains("actions/attest-build-provenance@v4.1.0"));
+    assert!(workflow.contains("subject-path:"));
+    assert!(workflow.contains(".intoto.jsonl"));
+    assert!(workflow.contains("steps.attest.outputs.bundle-path"));
     assert!(workflow.contains("actions/upload-artifact@v4"));
     assert!(workflow.contains("gh release upload"));
     assert!(workflow.contains("shasum -a 256"));
@@ -340,8 +349,11 @@ fn release_build_workflow_is_documented() {
     let installation = fs::read_to_string("docs/INSTALLATION.md").unwrap();
     assert!(installation.contains("Install From GitHub Releases"));
     assert!(installation.contains("shasum -a 256 -c"));
+    assert!(installation.contains("gh attestation verify"));
+    assert!(installation.contains("--repo nktkt/cppgauntlet"));
 
     let readme = fs::read_to_string("README.md").unwrap();
+    assert!(readme.contains("signed release artifact attestations"));
     assert!(readme.contains("automated macOS/Linux release builds"));
 }
 
