@@ -44,8 +44,29 @@ The workflow:
 
 CppGauntlet creates a separate coverage build directory and runs CTest from that instrumented build.
 
+## Target Matrix
+
+Use [target-matrix.yml](../examples/github-actions/target-matrix.yml) when one repository needs several CppGauntlet checks in parallel.
+
+The example matrix includes:
+
+- a single-file smoke check
+- a generated `compile_commands.json` check with `--clang-tidy`
+- a CMake coverage check with `--min-line-coverage`
+
+Each matrix entry owns:
+
+- `name`: stable job and report directory suffix
+- `target`: path passed to `cppgauntlet check`
+- `configure`: optional setup command, such as CMake configure
+- `args`: extra CppGauntlet flags
+- `artifact`: uploaded artifact name
+
+For arguments that need shell quoting, prefer moving options into `cppgauntlet.yaml` and keep the matrix `args` value simple.
+
 ## Other Examples
 
+- [target-matrix.yml](../examples/github-actions/target-matrix.yml): run several CppGauntlet targets in parallel
 - [changed-line-coverage.yml](../examples/github-actions/changed-line-coverage.yml): gate pull requests on coverage for changed lines
 - [baseline-review.yml](../examples/github-actions/baseline-review.yml): compare against a diagnostic baseline and upload a candidate baseline
 - [code-scanning.yml](../examples/github-actions/code-scanning.yml): upload SARIF results to GitHub Code Scanning

@@ -1,0 +1,90 @@
+name: CppGauntlet target matrix
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  cppgauntlet:
+    name: CppGauntlet (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: single-file
+            target: src/main.cpp
+            configure: ""
+            args: --sanitizers none
+            artifact: cppgauntlet-single-file
+          - name: compile-database
+            target: build/compile_commands.json
+            configure: cmake -S . -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+            args: --clang-tidy
+            artifact: cppgauntlet-compile-database
+          - name: cmake-coverage
+            target: .
+            configure: ""
+            args: --coverage --min-line-coverage 80
+            artifact: cppgauntlet-cmake-coverage
+
+    env:
+      CPPGAUNTLET_TARGET: ${{ matrix.target }}
+      CPPGAUNTLET_CONFIGURE_COMMAND: ${{ matrix.configure }}
+      CPPGAUNTLET_ARGS: ${{ matrix.args }}
+      CPPGAUNTLET_REPORT: .cppgauntlet/${{ matrix.name }}/cppgauntlet-report.json
+      CPPGAUNTLET_MARKDOWN: .cppgauntlet/${{ matrix.name }}/cppgauntlet-report.md
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install C++ tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang clang-tidy cmake ninja-build llvm
+
+      - name: Install CppGauntlet
+        run: cargo install --git https://github.com/nktkt/cppgauntlet
+
+      - name: Configure target
+        if: env.CPPGAUNTLET_CONFIGURE_COMMAND != ''
+        shell: bash
+        run: bash -lc "$CPPGAUNTLET_CONFIGURE_COMMAND"
+
+      - name: Run CppGauntlet
+        id: cppgauntlet
+        continue-on-error: true
+        shell: bash
+        run: |
+          mkdir -p "$(dirname "$CPPGAUNTLET_REPORT")"
+          extra_args=()
+          if [ -n "$CPPGAUNTLET_ARGS" ]; then
+            read -r -a extra_args <<< "$CPPGAUNTLET_ARGS"
+          fi
+
+          cppgauntlet check "$CPPGAUNTLET_TARGET" \
+            "${extra_args[@]}" \
+            --report "$CPPGAUNTLET_REPORT" \
+            --markdown-report "$CPPGAUNTLET_MARKDOWN"
+
+      - name: Upload CppGauntlet artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            .cppgauntlet/${{ matrix.name }}/cppgauntlet-report.json
+            .cppgauntlet/${{ matrix.name }}/cppgauntlet-report.md
+            .cppgauntlet/coverage/**
+          if-no-files-found: warn
+
+      - name: Fail on CppGauntlet gate
+        if: steps.cppgauntlet.outcome == 'failure'
+        run: exit 1

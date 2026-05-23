@@ -186,11 +186,25 @@ fn github_actions_compile_database_and_cmake_coverage_examples_are_documented() 
     assert!(cmake_coverage.contains(".cppgauntlet/coverage/cmake/**"));
     assert!(cmake_coverage.contains("cppgauntlet-cmake-coverage"));
 
+    let target_matrix = fs::read_to_string("examples/github-actions/target-matrix.yml").unwrap();
+    assert!(target_matrix.contains("strategy:"));
+    assert!(target_matrix.contains("fail-fast: false"));
+    assert!(target_matrix.contains("name: single-file"));
+    assert!(target_matrix.contains("name: compile-database"));
+    assert!(target_matrix.contains("name: cmake-coverage"));
+    assert!(target_matrix.contains("CPPGAUNTLET_ARGS"));
+    assert!(target_matrix.contains("read -r -a extra_args"));
+    assert!(target_matrix.contains("matrix.artifact"));
+    assert!(target_matrix.contains("steps.cppgauntlet.outcome == 'failure'"));
+
     let docs = fs::read_to_string("docs/GITHUB_ACTIONS.md").unwrap();
     assert!(docs.contains("../examples/github-actions/compile-database.yml"));
     assert!(docs.contains("../examples/github-actions/cmake-coverage.yml"));
+    assert!(docs.contains("../examples/github-actions/target-matrix.yml"));
     assert!(docs.contains("CPPGAUNTLET_CONFIGURE_COMMAND"));
     assert!(docs.contains("CPPGAUNTLET_MIN_LINE_COVERAGE"));
+    assert!(docs.contains("Target Matrix"));
+    assert!(docs.contains("single-file smoke check"));
 
     let compilation_database_docs = fs::read_to_string("docs/COMPILATION_DATABASE.md").unwrap();
     assert!(compilation_database_docs.contains("../examples/github-actions/compile-database.yml"));
@@ -203,7 +217,7 @@ fn github_actions_compile_database_and_cmake_coverage_examples_are_documented() 
 
     let readme = fs::read_to_string("README.md").unwrap();
     assert!(readme.contains("[docs/GITHUB_ACTIONS.md](docs/GITHUB_ACTIONS.md)"));
-    assert!(readme.contains("reusable GitHub Actions examples"));
+    assert!(readme.contains("reusable GitHub Actions examples and matrix workflows"));
 }
 
 #[test]
