@@ -27,6 +27,11 @@ jobs:
 
             const labelDefinitions = {
               "needs-triage": { color: "fbca04", description: "Needs maintainer triage" },
+              "priority: needs-priority": { color: "fbca04", description: "Needs maintainer priority assignment" },
+              "priority: critical": { color: "b60205", description: "Release-blocking or security-sensitive work" },
+              "priority: high": { color: "d93f0b", description: "Important regression or blocked workflow" },
+              "priority: medium": { color: "fbca04", description: "Useful work with no immediate release risk" },
+              "priority: low": { color: "cfd3d7", description: "Opportunistic cleanup or polish" },
               "area: baseline": { color: "5319e7", description: "Diagnostic baseline workflow" },
               "area: build-systems": { color: "1d76db", description: "CMake or compilation database support" },
               "area: ci": { color: "0e8a16", description: "CI and GitHub Actions integration" },
@@ -53,12 +58,17 @@ jobs:
             ];
 
             const labels = new Set(["needs-triage"]);
+            const hasPriority = (issue.labels || []).some((label) => label.name && label.name.startsWith("priority: "));
+            if (!hasPriority) {
+              labels.add("priority: needs-priority");
+            }
             for (const [label, needles] of rules) {
               if (needles.some((needle) => text.includes(needle))) {
                 labels.add(label);
               }
             }
 
+            await ensureLabels(labelDefinitions, new Set(Object.keys(labelDefinitions)));
             await ensureLabels(labelDefinitions, labels);
             await github.rest.issues.addLabels({
               owner: context.repo.owner,

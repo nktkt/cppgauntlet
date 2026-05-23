@@ -2,7 +2,7 @@
 
 CppGauntlet uses GitHub Actions to keep issue triage and pull request metadata consistent without requiring contributors to remember repository-specific labels.
 
-See [LABEL_TAXONOMY.md](LABEL_TAXONOMY.md) for the full support stage, work type, and product area label taxonomy.
+See [LABEL_TAXONOMY.md](LABEL_TAXONOMY.md) for the full support stage, priority, work type, and product area label taxonomy.
 
 ## Workflow
 
@@ -17,7 +17,7 @@ The `pull_request_target` job does not checkout or execute pull request code. It
 
 ## Issue Labels
 
-Issue automation always applies `needs-triage`. It also adds area labels from the issue title and body, including:
+Issue automation always applies `needs-triage`. If the issue has no priority label, it also applies `priority: needs-priority`. It then adds area labels from the issue title and body, including:
 
 - `area: baseline`
 - `area: build-systems`
@@ -31,6 +31,8 @@ Issue automation always applies `needs-triage`. It also adds area labels from th
 - `area: static-analysis`
 
 Missing labels are created automatically with stable colors and descriptions.
+
+Priority escalation remains a maintainer decision. Use [LABEL_TAXONOMY.md](LABEL_TAXONOMY.md) to decide when to move an issue to `priority: critical`, `priority: high`, `priority: medium`, or `priority: low`.
 
 ## Pull Request Labels
 

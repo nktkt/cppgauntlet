@@ -23,6 +23,20 @@ Issue templates apply these labels before automation adds area labels.
 | `bug` | issues | Broken, surprising, or incorrect CppGauntlet behavior. |
 | `enhancement` | issues | New workflow, integration, analyzer, output format, or product improvement. |
 
+## Priority Labels
+
+Priority labels are assigned during maintainer triage. Issue automation applies `priority: needs-priority` when an issue has no existing priority label.
+
+| Label | Meaning | Escalation trigger |
+| --- | --- | --- |
+| `priority: needs-priority` | The issue needs a maintainer priority decision. | Applied automatically when no priority exists. |
+| `priority: critical` | Release-blocking, security-sensitive, or data-loss risk. | Active users cannot safely install, run, or verify releases. |
+| `priority: high` | Important regression or blocked core workflow. | CI adoption, release automation, report compatibility, or primary checks are blocked. |
+| `priority: medium` | Useful product work with no immediate release risk. | Improves a supported workflow but has a workaround. |
+| `priority: low` | Opportunistic cleanup, polish, or exploratory work. | Nice to have, unclear urgency, or low user impact. |
+
+Only one priority label should be active at a time.
+
 ## Product Area Labels
 
 Use area labels to route work to the relevant subsystem.
@@ -44,7 +58,7 @@ Use area labels to route work to the relevant subsystem.
 
 ## Automation Rules
 
-Issue automation applies `needs-triage` and area labels from the issue title and body.
+Issue automation applies `needs-triage`, `priority: needs-priority` when no priority exists, and area labels from the issue title and body.
 
 Pull request automation applies `needs-review` or `status: draft`, then maps changed files to area labels:
 
@@ -60,10 +74,22 @@ Pull request automation applies `needs-review` or `status: draft`, then maps cha
 
 When a change spans multiple subsystems, keep every accurate area label. Do not remove a broad area label just because a more specific area label is also present.
 
+## Escalation Guidance
+
+Escalate an issue when new information shows broader risk than the current priority suggests:
+
+- move to `priority: critical` for release-blocking failures, security-sensitive distribution problems, or unsafe output that could mislead CI users
+- move to `priority: high` when a supported workflow is blocked without a practical workaround
+- move to `priority: medium` when the issue affects adoption but an explicit workaround exists
+- move to `priority: low` when the issue is polish, cleanup, or investigation
+
+When escalating, leave a short comment with the concrete trigger, such as failing release attestation verification, schema compatibility regression, or blocked CMake coverage adoption.
+
 ## Naming Rules
 
 - Use lower-case labels.
 - Use `area: <name>` for product areas.
+- Use `priority: <name>` for maintainer priority.
 - Use `status: <name>` for workflow state.
 - Keep unscoped labels only for common GitHub issue types such as `bug` and `enhancement`.
 - Prefer adding a documented label to inventing an ad hoc one in a single issue.

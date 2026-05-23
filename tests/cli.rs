@@ -277,6 +277,14 @@ fn contributor_automation_workflow_is_documented() {
     assert!(workflow.contains("actions/github-script@v8"));
     assert!(workflow.contains("needs-triage"));
     assert!(workflow.contains("needs-review"));
+    assert!(workflow.contains("priority: needs-priority"));
+    assert!(workflow.contains("priority: critical"));
+    assert!(workflow.contains("priority: high"));
+    assert!(workflow.contains("priority: medium"));
+    assert!(workflow.contains("priority: low"));
+    assert!(workflow.contains("hasPriority"));
+    assert!(workflow.contains("startsWith(\"priority: \")"));
+    assert!(workflow.contains("new Set(Object.keys(labelDefinitions))"));
     assert!(workflow.contains("area: fuzzing"));
     assert!(workflow.contains("area: coverage"));
     assert!(workflow.contains("Validate pull request body"));
@@ -289,17 +297,26 @@ fn contributor_automation_workflow_is_documented() {
     assert!(docs.contains("does not checkout or execute pull request code"));
     assert!(docs.contains("needs-triage"));
     assert!(docs.contains("needs-review"));
+    assert!(docs.contains("priority: needs-priority"));
+    assert!(docs.contains("priority: critical"));
     assert!(docs.contains("LABEL_TAXONOMY.md"));
 
     let taxonomy = fs::read_to_string("docs/LABEL_TAXONOMY.md").unwrap();
     assert!(taxonomy.contains("## Support Stage Labels"));
     assert!(taxonomy.contains("## Work Type Labels"));
+    assert!(taxonomy.contains("## Priority Labels"));
     assert!(taxonomy.contains("## Product Area Labels"));
+    assert!(taxonomy.contains("## Escalation Guidance"));
     assert!(taxonomy.contains("`needs-triage`"));
     assert!(taxonomy.contains("`needs-review`"));
     assert!(taxonomy.contains("`status: draft`"));
     assert!(taxonomy.contains("`bug`"));
     assert!(taxonomy.contains("`enhancement`"));
+    assert!(taxonomy.contains("`priority: needs-priority`"));
+    assert!(taxonomy.contains("`priority: critical`"));
+    assert!(taxonomy.contains("`priority: high`"));
+    assert!(taxonomy.contains("`priority: medium`"));
+    assert!(taxonomy.contains("`priority: low`"));
     assert!(taxonomy.contains("`area: baseline`"));
     assert!(taxonomy.contains("`area: build-systems`"));
     assert!(taxonomy.contains("`area: ci`"));
@@ -314,6 +331,8 @@ fn contributor_automation_workflow_is_documented() {
     assert!(taxonomy.contains("`area: tests`"));
     assert!(taxonomy.contains("examples/github-actions/**"));
     assert!(taxonomy.contains("Use lower-case labels"));
+    assert!(taxonomy.contains("Use `priority: <name>`"));
+    assert!(taxonomy.contains("schema compatibility regression"));
 
     let contributing = fs::read_to_string("CONTRIBUTING.md").unwrap();
     assert!(contributing.contains("docs/CONTRIBUTOR_AUTOMATION.md"));
@@ -322,6 +341,7 @@ fn contributor_automation_workflow_is_documented() {
     assert!(readme.contains("[docs/CONTRIBUTOR_AUTOMATION.md](docs/CONTRIBUTOR_AUTOMATION.md)"));
     assert!(readme.contains("[docs/LABEL_TAXONOMY.md](docs/LABEL_TAXONOMY.md)"));
     assert!(readme.contains("documented label taxonomy"));
+    assert!(readme.contains("priority escalation guidance"));
 }
 
 #[test]
