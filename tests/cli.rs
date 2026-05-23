@@ -1113,6 +1113,65 @@ fn check_policy_can_discover_changed_lines_from_diff() {
 }
 
 #[test]
+#[cfg(unix)]
+fn check_source_can_run_libfuzzer_smoke_workflow() {
+    let temp = tempdir().unwrap();
+    write_project_source(
+        temp.path(),
+        "fuzz_target.cpp",
+        r#"#include <cstddef>
+#include <cstdint>
+
+extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t *data, std::size_t size) {
+    return size > 0 && data[0] == 0xff ? 0 : 0;
+}
+"#,
+    );
+    let compiler = make_fake_compiler(temp.path(), "fuzz-clang++");
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args([
+            "check",
+            "fuzz_target.cpp",
+            "--compiler",
+            compiler.to_str().unwrap(),
+            "--sanitizers",
+            "none",
+            "--fuzz",
+            "--fuzz-seconds",
+            "1",
+            "--fuzz-corpus",
+            "seed-corpus",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("fuzz_compile"))
+        .stdout(predicate::str::contains("fuzz_run"));
+
+    let value = read_report(temp.path());
+    assert_eq!(value["status"], "passed");
+    assert_eq!(stage(&value, "fuzz_compile")["status"], "passed");
+    assert_eq!(stage(&value, "fuzz_run")["status"], "passed");
+    assert!(!stage_name_exists(&value, "compile"));
+    assert!(stage(&value, "fuzz_compile")["command"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|arg| arg == "-fsanitize=fuzzer"));
+    assert!(stage(&value, "fuzz_run")["command"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|arg| arg == "-max_total_time=1"));
+    assert!(stage(&value, "fuzz_run")["command"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|arg| arg.as_str().unwrap().ends_with("seed-corpus")));
+}
+
+#[test]
 fn check_baseline_marks_existing_diagnostics_without_failing() {
     if !clang_available() {
         return;

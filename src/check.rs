@@ -14,6 +14,8 @@ use crate::report::{
 };
 use crate::runner::{run_command, CommandSpec};
 
+const DEFAULT_FUZZ_SECONDS: u64 = 5;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Sanitizer {
     Address,
@@ -50,7 +52,9 @@ pub fn run(args: CheckArgs) -> Result<Report, AppError> {
         CheckTarget::CompilationDatabase(_) if args.ctest => {
             Err(AppError::CtestRequiresCMakeProject)
         }
+        CheckTarget::CompilationDatabase(_) if args.fuzz => Err(AppError::FuzzRequiresSourceFile),
         CheckTarget::CompilationDatabase(database) => run_compilation_database(args, database),
+        CheckTarget::CMakeProject(_) if args.fuzz => Err(AppError::FuzzRequiresSourceFile),
         CheckTarget::CMakeProject(project_dir) => run_cmake_project(args, project_dir),
     }
 }
@@ -61,6 +65,10 @@ fn run_source_file(args: ResolvedCheckArgs, source: PathBuf) -> Result<Report, A
     let build_dir = artifact_root.join("build");
     create_dir(&artifact_root)?;
     create_dir(&build_dir)?;
+
+    if args.fuzz {
+        return run_source_file_fuzz(args, source, artifact_root, build_dir);
+    }
 
     let report_paths = resolve_report_paths(&args, &artifact_root);
     let sanitizers = parse_sanitizers(&args.sanitizers)?;
@@ -153,6 +161,74 @@ fn run_source_file(args: ResolvedCheckArgs, source: PathBuf) -> Result<Report, A
     append_policy_stage(&mut stages, &args, coverage.as_ref(), baseline.as_ref());
 
     let summary = summarize(&stages, coverage, baseline);
+    let status = if summary.failed_stages == 0 {
+        ReportStatus::Passed
+    } else {
+        ReportStatus::Failed
+    };
+
+    let report = Report {
+        schema_version: 3,
+        tool: ToolInfo {
+            name: "CppGauntlet".to_string(),
+            version: env!("CARGO_PKG_VERSION").to_string(),
+        },
+        target: TargetInfo {
+            path: source,
+            standard: args.standard.as_report_value().to_string(),
+            compiler: args.compiler,
+        },
+        status,
+        summary,
+        stages,
+        report_path: report_paths.json,
+        markdown_report_path: report_paths.markdown,
+        html_report_path: report_paths.html,
+        sarif_report_path: report_paths.sarif,
+    };
+
+    write_report_outputs(&report)?;
+    Ok(report)
+}
+
+fn run_source_file_fuzz(
+    args: ResolvedCheckArgs,
+    source: PathBuf,
+    artifact_root: PathBuf,
+    build_dir: PathBuf,
+) -> Result<Report, AppError> {
+    let report_paths = resolve_report_paths(&args, &artifact_root);
+    let timeout = Duration::from_secs(args.timeout_seconds.max(args.fuzz_seconds + 5));
+    let fuzz_dir = artifact_root.join("fuzz");
+    let fuzz_artifact_dir = fuzz_dir.join("artifacts");
+    create_dir(&build_dir)?;
+    create_dir(&fuzz_artifact_dir)?;
+
+    let mut stages = Vec::new();
+    if args.clang_tidy {
+        stages.push(clang_tidy_source_stage(
+            &args.clang_tidy_bin,
+            args.clang_tidy_checks.as_deref(),
+            &source,
+            args.standard.as_flag(),
+            timeout,
+        ));
+    }
+
+    append_fuzz_stages(
+        &mut stages,
+        &args,
+        &source,
+        &build_dir,
+        &fuzz_dir,
+        &fuzz_artifact_dir,
+        timeout,
+    )?;
+    append_test_command_stage(&mut stages, &args, source.parent(), timeout);
+    let baseline = apply_baseline(&mut stages, &args);
+    append_policy_stage(&mut stages, &args, None, baseline.as_ref());
+
+    let summary = summarize(&stages, None, baseline);
     let status = if summary.failed_stages == 0 {
         ReportStatus::Passed
     } else {
@@ -589,6 +665,85 @@ fn test_command_stage(command: &str, current_dir: Option<&Path>, timeout: Durati
     stage_from_command_result("test_command", command_line, result, None)
 }
 
+fn append_fuzz_stages(
+    stages: &mut Vec<StageReport>,
+    args: &ResolvedCheckArgs,
+    source: &Path,
+    build_dir: &Path,
+    fuzz_dir: &Path,
+    fuzz_artifact_dir: &Path,
+    timeout: Duration,
+) -> Result<(), AppError> {
+    if stages
+        .iter()
+        .any(|stage| stage.status == StageStatus::Failed)
+    {
+        stages.push(StageReport::skipped("fuzz_compile"));
+        stages.push(StageReport::skipped("fuzz_run"));
+        return Ok(());
+    }
+
+    let sanitizers = parse_sanitizers(&args.sanitizers)?;
+    let executable = build_dir.join(fuzz_executable_name(source));
+    let fuzz_compile = compile_stage(
+        "fuzz_compile",
+        &args.compiler,
+        args.standard.as_flag(),
+        source,
+        &executable,
+        &fuzz_flags(&sanitizers),
+        timeout,
+    )?;
+    let fuzz_compile_ok = fuzz_compile.status == StageStatus::Passed;
+    stages.push(fuzz_compile);
+
+    if fuzz_compile_ok {
+        let corpus = selected_fuzz_corpus(fuzz_dir, &args.fuzz_corpus);
+        for path in &corpus {
+            create_dir(path)?;
+        }
+
+        stages.push(fuzz_run_stage(
+            &executable,
+            fuzz_artifact_dir,
+            &corpus,
+            args.fuzz_seconds,
+            timeout,
+        ));
+    } else {
+        stages.push(StageReport::skipped("fuzz_run"));
+    }
+
+    Ok(())
+}
+
+fn fuzz_run_stage(
+    executable: &Path,
+    fuzz_artifact_dir: &Path,
+    corpus: &[PathBuf],
+    seconds: u64,
+    timeout: Duration,
+) -> StageReport {
+    let mut args = vec![
+        format!("-max_total_time={seconds}"),
+        format!("-artifact_prefix={}/", fuzz_artifact_dir.display()),
+    ];
+    args.extend(corpus.iter().map(|path| path.display().to_string()));
+
+    let spec = CommandSpec::new(executable.display().to_string()).args(args);
+    let command_line = spec.command_line();
+    let result = run_command(spec, timeout);
+    stage_from_command_result("fuzz_run", command_line, result, Some(fuzz_artifact_dir))
+}
+
+fn selected_fuzz_corpus(fuzz_dir: &Path, corpus: &[PathBuf]) -> Vec<PathBuf> {
+    if corpus.is_empty() {
+        vec![fuzz_dir.join("corpus")]
+    } else {
+        corpus.to_vec()
+    }
+}
+
 #[cfg(unix)]
 fn shell_command_spec(command: &str) -> CommandSpec {
     CommandSpec::new("sh").args(["-c", command])
@@ -970,6 +1125,9 @@ struct ResolvedCheckArgs {
     coverage_sources: Vec<PathBuf>,
     coverage_objects: Vec<PathBuf>,
     changed_lines: Vec<ChangedLine>,
+    fuzz: bool,
+    fuzz_seconds: u64,
+    fuzz_corpus: Vec<PathBuf>,
     baseline: Option<Baseline>,
     max_warnings: Option<usize>,
     max_analyzer_findings: Option<usize>,
@@ -1003,6 +1161,9 @@ impl ResolvedCheckArgs {
         let config_llvm_profdata_bin = config.llvm_profdata_bin();
         let config_coverage_sources = config.coverage_sources();
         let config_coverage_objects = config.coverage_objects();
+        let config_fuzz = config.fuzz_enabled();
+        let config_fuzz_seconds = config.fuzz_seconds();
+        let config_fuzz_corpus = config.fuzz_corpus();
         let config_baseline_path = config.baseline_path();
         let config_max_warnings = config.max_warnings();
         let config_max_analyzer_findings = config.max_analyzer_findings();
@@ -1042,6 +1203,23 @@ impl ResolvedCheckArgs {
             || !coverage_sources.is_empty()
             || !coverage_objects.is_empty()
             || !changed_lines.is_empty();
+        let coverage = cli_requested_coverage || config_coverage.unwrap_or(false);
+        let fuzz = args.fuzz || config_fuzz.unwrap_or(false);
+        if fuzz && coverage {
+            return Err(AppError::FuzzCoverageUnsupported);
+        }
+        let fuzz_seconds = args
+            .fuzz_seconds
+            .or(config_fuzz_seconds)
+            .unwrap_or(DEFAULT_FUZZ_SECONDS);
+        if fuzz_seconds == 0 {
+            return Err(AppError::InvalidFuzzSeconds(fuzz_seconds));
+        }
+        let fuzz_corpus = if args.fuzz_corpus.is_empty() {
+            config_fuzz_corpus
+        } else {
+            args.fuzz_corpus.clone()
+        };
         let baseline_path = args.baseline.or(config_baseline_path);
         let fail_on_new_diagnostics =
             args.fail_on_new_diagnostics || config_fail_on_new_diagnostics.unwrap_or(false);
@@ -1090,7 +1268,7 @@ impl ResolvedCheckArgs {
                 .or(config_clang_tidy_bin)
                 .unwrap_or_else(|| "clang-tidy".to_string()),
             clang_tidy_checks: args.clang_tidy_checks.or(config_clang_tidy_checks),
-            coverage: cli_requested_coverage || config_coverage.unwrap_or(false),
+            coverage,
             llvm_cov_bin: args
                 .llvm_cov_bin
                 .or(config_llvm_cov_bin)
@@ -1102,6 +1280,9 @@ impl ResolvedCheckArgs {
             coverage_sources,
             coverage_objects,
             changed_lines,
+            fuzz,
+            fuzz_seconds,
+            fuzz_corpus,
             baseline,
             max_warnings: args.max_warnings.or(config_max_warnings),
             max_analyzer_findings,
@@ -2059,6 +2240,18 @@ fn sanitizer_flags(sanitizers: &[Sanitizer]) -> Vec<String> {
     ]
 }
 
+fn fuzz_flags(sanitizers: &[Sanitizer]) -> Vec<String> {
+    let mut sanitizer_names = vec!["fuzzer"];
+    sanitizer_names.extend(sanitizers.iter().map(|sanitizer| sanitizer.compiler_name()));
+
+    vec![
+        "-O1".to_string(),
+        "-fno-omit-frame-pointer".to_string(),
+        "-fno-sanitize-recover=all".to_string(),
+        format!("-fsanitize={}", sanitizer_names.join(",")),
+    ]
+}
+
 fn summarize(
     stages: &[StageReport],
     coverage: Option<CoverageSummary>,
@@ -2148,6 +2341,14 @@ fn executable_name(source: &Path, sanitizers: Option<&[Sanitizer]>) -> String {
 fn coverage_executable_name(source: &Path) -> String {
     format!(
         "{}-coverage{}",
+        artifact_stem(source),
+        std::env::consts::EXE_SUFFIX
+    )
+}
+
+fn fuzz_executable_name(source: &Path) -> String {
+    format!(
+        "{}-fuzz{}",
         artifact_stem(source),
         std::env::consts::EXE_SUFFIX
     )

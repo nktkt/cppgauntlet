@@ -39,6 +39,9 @@ pub struct ProjectConfig {
     pub coverage: Option<CoverageConfig>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fuzz: Option<FuzzConfig>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub baseline: Option<BaselineConfig>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -76,6 +79,11 @@ impl ProjectConfig {
                 llvm_profdata_bin: Some("llvm-profdata".to_string()),
                 sources: Vec::new(),
                 objects: Vec::new(),
+            }),
+            fuzz: Some(FuzzConfig {
+                enabled: Some(false),
+                seconds: Some(5),
+                corpus: Vec::new(),
             }),
             baseline: Some(BaselineConfig { path: None }),
             policy: Some(PolicyConfig {
@@ -183,6 +191,21 @@ impl ProjectConfig {
         self.coverage
             .as_ref()
             .map(|coverage| coverage.objects.clone())
+            .unwrap_or_default()
+    }
+
+    pub fn fuzz_enabled(&self) -> Option<bool> {
+        self.fuzz.as_ref().and_then(|fuzz| fuzz.enabled)
+    }
+
+    pub fn fuzz_seconds(&self) -> Option<u64> {
+        self.fuzz.as_ref().and_then(|fuzz| fuzz.seconds)
+    }
+
+    pub fn fuzz_corpus(&self) -> Vec<PathBuf> {
+        self.fuzz
+            .as_ref()
+            .map(|fuzz| fuzz.corpus.clone())
             .unwrap_or_default()
     }
 
@@ -297,6 +320,19 @@ pub struct CoverageConfig {
 
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub objects: Vec<PathBuf>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct FuzzConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seconds: Option<u64>,
+
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub corpus: Vec<PathBuf>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]

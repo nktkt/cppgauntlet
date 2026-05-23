@@ -99,6 +99,8 @@ Current stage names:
 - `coverage_merge`
 - `coverage_report`
 - `ctest`
+- `fuzz_compile`
+- `fuzz_run`
 - `policy`
 - `run`
 - `sanitize_compile`

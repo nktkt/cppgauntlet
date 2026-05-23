@@ -65,6 +65,11 @@ coverage:
   sources: []
   objects: []
 
+fuzz:
+  enabled: false
+  seconds: 5
+  corpus: []
+
 baseline:
   path: null
 
@@ -99,6 +104,9 @@ policy:
 - `coverage.llvm_profdata_bin`: `llvm-profdata` executable
 - `coverage.sources`: optional source paths passed to `llvm-cov export` as `--sources`
 - `coverage.objects`: optional coverage objects or executables passed to `llvm-cov export`
+- `fuzz.enabled`: build and run single-source libFuzzer smoke targets
+- `fuzz.seconds`: maximum libFuzzer smoke run duration in seconds
+- `fuzz.corpus`: corpus directories passed to the libFuzzer executable
 - `baseline.path`: previous CppGauntlet JSON report used to classify diagnostics as new or existing
 - `policy.max_warnings`: fail the report when total warnings exceed this number
 - `policy.max_analyzer_findings`: fail the report when analyzer diagnostics exceed this number

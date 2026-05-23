@@ -193,12 +193,12 @@ Exit criteria:
 
 ## Near-Term Priorities
 
-1. Add libFuzzer smoke workflows.
-2. Create contribution and issue templates before the first public release milestone.
-3. Add release packaging metadata and installation docs.
-4. Add baseline automation examples for reviewable CI artifact workflows.
-5. Add schema compatibility tests for older baseline and report files.
-6. Add GitHub Actions examples for diff-based changed-line coverage.
+1. Create contribution and issue templates before the first public release milestone.
+2. Add release packaging metadata and installation docs.
+3. Add baseline automation examples for reviewable CI artifact workflows.
+4. Add schema compatibility tests for older baseline and report files.
+5. Add GitHub Actions examples for diff-based changed-line coverage.
+6. Add project-level fuzz target discovery.
 
 ## Non-Goals
 

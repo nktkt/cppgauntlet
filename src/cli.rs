@@ -161,6 +161,18 @@ pub struct CheckArgs {
     #[arg(long = "changed-lines-diff")]
     pub changed_lines_diff: Option<PathBuf>,
 
+    /// Build and run the source file as a libFuzzer smoke target.
+    #[arg(long)]
+    pub fuzz: bool,
+
+    /// Maximum libFuzzer smoke run duration in seconds.
+    #[arg(long)]
+    pub fuzz_seconds: Option<u64>,
+
+    /// Corpus directory to pass to the libFuzzer executable. Repeat to use multiple corpora.
+    #[arg(long = "fuzz-corpus")]
+    pub fuzz_corpus: Vec<PathBuf>,
+
     /// Previous CppGauntlet JSON report to use as a diagnostic baseline.
     #[arg(long)]
     pub baseline: Option<PathBuf>,
