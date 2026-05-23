@@ -1,0 +1,48 @@
+name: Feature request
+description: Propose a CppGauntlet workflow, integration, or product improvement.
+title: "feat: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for new checks, build-system support, report outputs, CI workflows, or developer experience improvements.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What C++ verification workflow is hard today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the command, configuration, report output, or workflow you want.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Mention existing tools or workarounds if relevant.
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - CLI
+        - Configuration
+        - Reports
+        - CI integration
+        - Build systems
+        - Static analysis
+        - Coverage
+        - Fuzzing
+        - Documentation
+        - Other
+    validations:
+      required: true

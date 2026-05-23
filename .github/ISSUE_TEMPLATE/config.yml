@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Roadmap
+    url: https://github.com/nktkt/cppgauntlet/blob/main/ROADMAP.md
+    about: Check current product direction before proposing broad work.
+  - name: Contributing guide
+    url: https://github.com/nktkt/cppgauntlet/blob/main/CONTRIBUTING.md
+    about: Read setup, validation, and pull request expectations.

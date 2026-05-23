@@ -1,0 +1,55 @@
+name: Bug report
+description: Report broken or surprising CppGauntlet behavior.
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a CppGauntlet bug. Small reproductions and exact commands help most.
+  - type: input
+    id: version
+    attributes:
+      label: CppGauntlet version
+      description: Use `cppgauntlet --version` or the commit SHA.
+      placeholder: "0.1.0 or commit SHA"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Rust version, compiler version, and relevant LLVM tools.
+      placeholder: "macOS 15, rustc stable, clang++ 18"
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command or configuration
+      description: Paste the command, config, or CI step that triggered the issue.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include output, report snippets, logs, or screenshots.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: Link a repo or paste a tiny C++ fixture when possible.
+      render: cpp
+    validations:
+      required: false

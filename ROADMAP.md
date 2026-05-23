@@ -193,12 +193,12 @@ Exit criteria:
 
 ## Near-Term Priorities
 
-1. Create contribution and issue templates before the first public release milestone.
-2. Add release packaging metadata and installation docs.
-3. Add baseline automation examples for reviewable CI artifact workflows.
-4. Add schema compatibility tests for older baseline and report files.
-5. Add GitHub Actions examples for diff-based changed-line coverage.
-6. Add project-level fuzz target discovery.
+1. Add release packaging metadata and installation docs.
+2. Add baseline automation examples for reviewable CI artifact workflows.
+3. Add schema compatibility tests for older baseline and report files.
+4. Add GitHub Actions examples for diff-based changed-line coverage.
+5. Add project-level fuzz target discovery.
+6. Add contributor workflow automation for issue labels and PR checks.
 
 ## Non-Goals
 

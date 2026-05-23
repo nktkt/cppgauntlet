@@ -105,6 +105,30 @@ fn github_code_scanning_example_is_documented() {
 }
 
 #[test]
+fn contribution_metadata_is_documented() {
+    let readme = fs::read_to_string("README.md").unwrap();
+    assert!(readme.contains("[CONTRIBUTING.md](CONTRIBUTING.md)"));
+    assert!(readme.contains("[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)"));
+
+    let contributing = fs::read_to_string("CONTRIBUTING.md").unwrap();
+    assert!(contributing.contains("cargo fmt --all -- --check"));
+    assert!(contributing.contains("cargo clippy --all-targets -- -D warnings"));
+    assert!(contributing.contains("cargo test"));
+
+    let pull_request_template = fs::read_to_string(".github/PULL_REQUEST_TEMPLATE.md").unwrap();
+    assert!(pull_request_template.contains("## Validation"));
+
+    let bug_template = fs::read_to_string(".github/ISSUE_TEMPLATE/bug_report.yml").unwrap();
+    assert!(bug_template.contains("name: Bug report"));
+    assert!(bug_template.contains("Minimal reproduction"));
+
+    let feature_template =
+        fs::read_to_string(".github/ISSUE_TEMPLATE/feature_request.yml").unwrap();
+    assert!(feature_template.contains("name: Feature request"));
+    assert!(feature_template.contains("Proposed behavior"));
+}
+
+#[test]
 #[cfg(unix)]
 fn doctor_reports_custom_required_tool_available() {
     let temp = tempdir().unwrap();

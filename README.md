@@ -173,7 +173,11 @@ policy:
 
 ## Project Status
 
-CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, custom test commands, optional `clang-tidy` analysis, single-file, compilation database, and CMake/CTest LLVM coverage, changed-line coverage from explicit lines or unified diffs, libFuzzer smoke workflows, diagnostic baselines with changed-diagnostic update summaries, CI policy gates including changed-line coverage, environment diagnostics, JSON reports with diagnostic fingerprints and parsed source locations, Markdown reports, HTML reports, SARIF output, and GitHub Code Scanning examples.
+CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, custom test commands, optional `clang-tidy` analysis, single-file, compilation database, and CMake/CTest LLVM coverage, changed-line coverage from explicit lines or unified diffs, libFuzzer smoke workflows, diagnostic baselines with changed-diagnostic update summaries, CI policy gates including changed-line coverage, environment diagnostics, JSON reports with diagnostic fingerprints and parsed source locations, Markdown reports, HTML reports, SARIF output, GitHub Code Scanning examples, and contributor templates.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, validation commands, issue guidance, and pull request expectations. Contributors are expected to follow [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
 ## License
 
