@@ -129,6 +129,34 @@ fn github_baseline_review_example_is_documented() {
 }
 
 #[test]
+fn github_changed_line_coverage_example_is_documented() {
+    let workflow = fs::read_to_string("examples/github-actions/changed-line-coverage.yml").unwrap();
+    assert!(workflow.contains("actions/checkout@v6"));
+    assert!(workflow.contains("fetch-depth: 0"));
+    assert!(workflow.contains("github.event.pull_request.base.sha"));
+    assert!(workflow.contains("--changed-lines-diff \"$CPPGAUNTLET_DIFF\""));
+    assert!(
+        workflow.contains("--min-changed-line-coverage \"$CPPGAUNTLET_MIN_CHANGED_LINE_COVERAGE\"")
+    );
+    assert!(workflow.contains("CPPGAUNTLET_TEST_COMMAND"));
+    assert!(workflow.contains("actions/upload-artifact@v4"));
+    assert!(workflow.contains("cppgauntlet-changed-line-coverage"));
+    assert!(workflow.contains("steps.cppgauntlet.outcome == 'failure'"));
+
+    let docs = fs::read_to_string("docs/GITHUB_CHANGED_LINE_COVERAGE.md").unwrap();
+    assert!(docs.contains("../examples/github-actions/changed-line-coverage.yml"));
+    assert!(docs.contains("cppgauntlet-changed-line-coverage"));
+    assert!(docs.contains("summary.coverage.changed_lines"));
+
+    let coverage_docs = fs::read_to_string("docs/COVERAGE.md").unwrap();
+    assert!(coverage_docs.contains("GITHUB_CHANGED_LINE_COVERAGE.md"));
+
+    let readme = fs::read_to_string("README.md").unwrap();
+    assert!(readme
+        .contains("[docs/GITHUB_CHANGED_LINE_COVERAGE.md](docs/GITHUB_CHANGED_LINE_COVERAGE.md)"));
+}
+
+#[test]
 fn contribution_metadata_is_documented() {
     let readme = fs::read_to_string("README.md").unwrap();
     assert!(readme.contains("[CONTRIBUTING.md](CONTRIBUTING.md)"));

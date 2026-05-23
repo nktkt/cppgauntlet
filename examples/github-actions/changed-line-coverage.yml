@@ -1,0 +1,86 @@
+name: CppGauntlet changed-line coverage
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  cppgauntlet:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    env:
+      CPPGAUNTLET_TARGET: path/to/main.cpp
+      CPPGAUNTLET_DIFF: .cppgauntlet/changed.diff
+      CPPGAUNTLET_REPORT: .cppgauntlet/cppgauntlet-report.json
+      CPPGAUNTLET_MARKDOWN: .cppgauntlet/cppgauntlet-report.md
+      CPPGAUNTLET_MIN_CHANGED_LINE_COVERAGE: "80"
+      CPPGAUNTLET_TEST_COMMAND: ""
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install C++ coverage tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang llvm
+
+      - name: Install CppGauntlet
+        run: cargo install --git https://github.com/nktkt/cppgauntlet
+
+      - name: Write changed-line diff
+        shell: bash
+        run: |
+          mkdir -p "$(dirname "$CPPGAUNTLET_DIFF")"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            if ! git diff -U0 \
+              "${{ github.event.pull_request.base.sha }}"..."${{ github.event.pull_request.head.sha }}" \
+              > "$CPPGAUNTLET_DIFF"; then
+              git diff -U0 "origin/${{ github.base_ref }}"...HEAD > "$CPPGAUNTLET_DIFF"
+            fi
+          elif [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            git diff -U0 "${{ github.event.before }}" "${{ github.sha }}" > "$CPPGAUNTLET_DIFF"
+          else
+            git diff -U0 "${{ github.sha }}^" "${{ github.sha }}" > "$CPPGAUNTLET_DIFF" || : > "$CPPGAUNTLET_DIFF"
+          fi
+
+      - name: Run CppGauntlet changed-line coverage
+        id: cppgauntlet
+        continue-on-error: true
+        shell: bash
+        run: |
+          args=(
+            check "$CPPGAUNTLET_TARGET"
+            --coverage
+            --changed-lines-diff "$CPPGAUNTLET_DIFF"
+            --min-changed-line-coverage "$CPPGAUNTLET_MIN_CHANGED_LINE_COVERAGE"
+            --report "$CPPGAUNTLET_REPORT"
+            --markdown-report "$CPPGAUNTLET_MARKDOWN"
+          )
+          if [ -n "$CPPGAUNTLET_TEST_COMMAND" ]; then
+            args+=(--test-command "$CPPGAUNTLET_TEST_COMMAND")
+          fi
+          cppgauntlet "${args[@]}"
+
+      - name: Upload coverage artifacts
+        if: always() && hashFiles('.cppgauntlet/cppgauntlet-report.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: cppgauntlet-changed-line-coverage
+          path: |
+            .cppgauntlet/changed.diff
+            .cppgauntlet/cppgauntlet-report.json
+            .cppgauntlet/cppgauntlet-report.md
+            .cppgauntlet/coverage/**
+
+      - name: Fail on CppGauntlet gate
+        if: steps.cppgauntlet.outcome == 'failure'
+        run: exit 1

@@ -193,12 +193,12 @@ Exit criteria:
 
 ## Near-Term Priorities
 
-1. Add GitHub Actions examples for diff-based changed-line coverage.
-2. Add project-level fuzz target discovery.
-3. Add contributor workflow automation for issue labels and PR checks.
-4. Add automated release builds for macOS and Linux.
-5. Add PR comment summaries for baseline update artifacts.
-6. Add explicit report schema migration notes for future breaking changes.
+1. Add project-level fuzz target discovery.
+2. Add contributor workflow automation for issue labels and PR checks.
+3. Add automated release builds for macOS and Linux.
+4. Add PR comment summaries for baseline update artifacts.
+5. Add explicit report schema migration notes for future breaking changes.
+6. Add reusable GitHub Actions snippets for compile database and CMake coverage targets.
 
 ## Non-Goals
 
