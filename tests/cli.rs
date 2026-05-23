@@ -459,6 +459,9 @@ fn release_packaging_metadata_is_documented() {
     assert!(release.contains("bash scripts/verify-report-schema-compat.sh"));
     assert!(release.contains("bash scripts/generate-release-sbom.sh"));
     assert!(release.contains("bash scripts/verify-release-sbom-policy.sh"));
+    assert!(release.contains("bash scripts/verify-crates-release-dry-run.sh"));
+    assert!(release.contains("cargo publish --dry-run --locked"));
+    assert!(release.contains("CPPGAUNTLET_CARGO_PUBLISH_EXTRA_ARGS=--allow-dirty"));
     assert!(release.contains("CycloneDX 1.5"));
     assert!(release.contains("dependency edges that match `cargo metadata --locked`"));
     assert!(release.contains("bash scripts/smoke-release-archive.sh"));
@@ -492,6 +495,11 @@ fn release_build_workflow_is_documented() {
     assert!(workflow.contains("workflow_dispatch"));
     assert!(workflow.contains("id-token: write"));
     assert!(workflow.contains("attestations: write"));
+    assert!(workflow.contains("crate-dry-run"));
+    assert!(workflow.contains("crates.io dry run"));
+    assert!(workflow.contains("Verify crates.io publish dry run"));
+    assert!(workflow.contains("bash scripts/verify-crates-release-dry-run.sh"));
+    assert!(workflow.contains("needs: crate-dry-run"));
     assert!(workflow.contains("ubuntu-latest"));
     assert!(workflow.contains("macos-latest"));
     assert!(workflow.contains("cargo test --locked"));
@@ -529,6 +537,7 @@ fn release_build_workflow_is_documented() {
 
     let readme = fs::read_to_string("README.md").unwrap();
     assert!(readme.contains("schema compatibility tests and release gates"));
+    assert!(readme.contains("crates.io dry-run release gates"));
     assert!(readme.contains("release archive smoke tests"));
     assert!(readme.contains("policy-checked CycloneDX release SBOMs"));
     assert!(readme.contains("signed release artifact attestations"));
@@ -558,6 +567,11 @@ fn release_build_workflow_is_documented() {
 
     let script = fs::read_to_string("scripts/verify-report-schema-compat.sh").unwrap();
     assert!(script.contains("cargo test --locked --test cli schema"));
+
+    let crates_dry_run_script =
+        fs::read_to_string("scripts/verify-crates-release-dry-run.sh").unwrap();
+    assert!(crates_dry_run_script.contains("cargo publish --dry-run --locked"));
+    assert!(crates_dry_run_script.contains("CPPGAUNTLET_CARGO_PUBLISH_EXTRA_ARGS"));
 
     let sbom_script = fs::read_to_string("scripts/generate-release-sbom.sh").unwrap();
     assert!(sbom_script.contains("cargo metadata --locked --format-version 1"));

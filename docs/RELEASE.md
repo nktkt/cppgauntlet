@@ -1,6 +1,6 @@
 # Release Checklist
 
-CppGauntlet has automated GitHub release builds for macOS and Linux. The release workflow builds release binaries, packages archives, writes SHA-256 checksums, smoke-tests generated archives, generates policy-checked CycloneDX SBOMs, creates signed GitHub artifact attestations, generates categorized release notes from merged pull requests, uploads workflow artifacts, and attaches assets to tagged GitHub releases.
+CppGauntlet has automated GitHub release builds for macOS and Linux. The release workflow runs a crates.io publish dry run, builds release binaries, packages archives, writes SHA-256 checksums, smoke-tests generated archives, generates policy-checked CycloneDX SBOMs, creates signed GitHub artifact attestations, generates categorized release notes from merged pull requests, uploads workflow artifacts, and attaches assets to tagged GitHub releases.
 
 ## Version Metadata
 
@@ -20,6 +20,7 @@ cargo test
 bash scripts/verify-report-schema-compat.sh
 bash scripts/generate-release-sbom.sh /tmp/cppgauntlet.cdx.json
 bash scripts/verify-release-sbom-policy.sh /tmp/cppgauntlet.cdx.json
+bash scripts/verify-crates-release-dry-run.sh
 cargo package --list
 cargo package --no-verify
 ```
@@ -61,6 +62,14 @@ It runs on:
 - tags matching `v*`
 - manual `workflow_dispatch`
 
+Before platform binary jobs start, the release workflow runs a dedicated crates.io dry-run job:
+
+```bash
+bash scripts/verify-crates-release-dry-run.sh
+```
+
+The script executes `cargo publish --dry-run --locked`, which verifies package metadata, included files, dependency resolution, and package compilation without uploading to crates.io. For local validation with uncommitted changes, set `CPPGAUNTLET_CARGO_PUBLISH_EXTRA_ARGS=--allow-dirty`.
+
 For each platform, the workflow runs:
 
 ```bash
@@ -70,7 +79,7 @@ cargo build --release --locked
 bash scripts/smoke-release-archive.sh <archive.tar.gz> <archive.tar.gz.sha256>
 ```
 
-The schema compatibility gate exercises older report and baseline fixtures before release binaries are built.
+The crates.io dry-run and schema compatibility gates run before release binaries are built. The schema gate exercises older report and baseline fixtures.
 
 It packages:
 

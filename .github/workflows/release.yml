@@ -12,8 +12,25 @@ permissions:
   attestations: write
 
 jobs:
+  crate-dry-run:
+    name: crates.io dry run
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Verify crates.io publish dry run
+        run: bash scripts/verify-crates-release-dry-run.sh
+
   binary:
     name: Binary (${{ matrix.platform }})
+    needs: crate-dry-run
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
