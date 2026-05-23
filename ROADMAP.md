@@ -193,12 +193,12 @@ Exit criteria:
 
 ## Near-Term Priorities
 
-1. Add schema compatibility tests for older baseline and report files.
-2. Add GitHub Actions examples for diff-based changed-line coverage.
-3. Add project-level fuzz target discovery.
-4. Add contributor workflow automation for issue labels and PR checks.
-5. Add automated release builds for macOS and Linux.
-6. Add PR comment summaries for baseline update artifacts.
+1. Add GitHub Actions examples for diff-based changed-line coverage.
+2. Add project-level fuzz target discovery.
+3. Add contributor workflow automation for issue labels and PR checks.
+4. Add automated release builds for macOS and Linux.
+5. Add PR comment summaries for baseline update artifacts.
+6. Add explicit report schema migration notes for future breaking changes.
 
 ## Non-Goals
 

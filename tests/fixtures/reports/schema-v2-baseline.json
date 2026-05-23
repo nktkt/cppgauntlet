@@ -1,0 +1,52 @@
+{
+  "schema_version": 2,
+  "tool": {
+    "name": "CppGauntlet",
+    "version": "0.1.0"
+  },
+  "target": {
+    "path": "compat.cpp",
+    "standard": "c++20",
+    "compiler": "clang++"
+  },
+  "status": "passed",
+  "summary": {
+    "warnings": 1,
+    "errors": 0,
+    "diagnostics": 1,
+    "failed_stages": 0,
+    "timed_out_stages": 0
+  },
+  "stages": [
+    {
+      "name": "compile",
+      "status": "passed",
+      "command": [
+        "clang++",
+        "-std=c++20",
+        "-Wall",
+        "-Wextra",
+        "-Wpedantic",
+        "-g",
+        "compat.cpp",
+        "-o",
+        ".cppgauntlet/build/compat"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "warnings": 1,
+      "errors": 0,
+      "diagnostics": [
+        {
+          "severity": "warning",
+          "message": "unused variable 'unused' [-Wunused-variable]",
+          "raw": "compat.cpp:1:5: warning: unused variable 'unused' [-Wunused-variable]"
+        }
+      ],
+      "stdout": "",
+      "stderr": "compat.cpp:1:5: warning: unused variable 'unused' [-Wunused-variable]",
+      "artifact": ".cppgauntlet/build/compat"
+    }
+  ],
+  "report_path": ".cppgauntlet/baseline.json"
+}

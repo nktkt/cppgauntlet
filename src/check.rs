@@ -10,7 +10,7 @@ use crate::config;
 use crate::error::AppError;
 use crate::report::{
     stage_from_result, BaselineSummary, CoverageMetric, CoverageSummary, Report, ReportStatus,
-    StageReport, StageStatus, Summary, TargetInfo, ToolInfo,
+    StageReport, StageStatus, Summary, TargetInfo, ToolInfo, REPORT_SCHEMA_VERSION,
 };
 use crate::runner::{run_command, CommandSpec};
 
@@ -168,7 +168,7 @@ fn run_source_file(args: ResolvedCheckArgs, source: PathBuf) -> Result<Report, A
     };
 
     let report = Report {
-        schema_version: 3,
+        schema_version: REPORT_SCHEMA_VERSION,
         tool: ToolInfo {
             name: "CppGauntlet".to_string(),
             version: env!("CARGO_PKG_VERSION").to_string(),
@@ -236,7 +236,7 @@ fn run_source_file_fuzz(
     };
 
     let report = Report {
-        schema_version: 3,
+        schema_version: REPORT_SCHEMA_VERSION,
         tool: ToolInfo {
             name: "CppGauntlet".to_string(),
             version: env!("CARGO_PKG_VERSION").to_string(),
@@ -436,7 +436,7 @@ fn build_and_write_report_with_coverage(
     };
 
     let report = Report {
-        schema_version: 3,
+        schema_version: REPORT_SCHEMA_VERSION,
         tool: ToolInfo {
             name: "CppGauntlet".to_string(),
             version: env!("CARGO_PKG_VERSION").to_string(),

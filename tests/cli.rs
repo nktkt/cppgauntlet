@@ -1481,6 +1481,99 @@ fn baseline_update_writes_reusable_baseline_report() {
 }
 
 #[test]
+fn baseline_update_accepts_schema_v1_report_without_diagnostics() {
+    let temp = tempdir().unwrap();
+    fs::write(
+        temp.path().join("schema-v1-report.json"),
+        include_str!("fixtures/reports/schema-v1-report.json"),
+    )
+    .unwrap();
+
+    let mut update = Command::cargo_bin("cppgauntlet").unwrap();
+    let assert = update
+        .current_dir(temp.path())
+        .args([
+            "--format",
+            "json",
+            "baseline",
+            "update",
+            "--report",
+            "schema-v1-report.json",
+            "--output",
+            "baseline.json",
+        ])
+        .assert()
+        .success();
+    let stdout = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
+    let value: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+
+    assert_eq!(value["diagnostics"], 1);
+    assert_eq!(value["unique_diagnostics"], 1);
+    assert_eq!(value["stages"], 1);
+
+    let baseline = read_report_at(temp.path().join("baseline.json"));
+    assert_eq!(baseline["schema_version"], 3);
+    assert_eq!(baseline["summary"]["diagnostics"], 1);
+    assert_eq!(
+        stage(&baseline, "compile")["diagnostics"][0]["location"]["uri"],
+        "legacy.cpp"
+    );
+    assert!(
+        stage(&baseline, "compile")["diagnostics"][0]["fingerprint"]
+            .as_str()
+            .unwrap()
+            .len()
+            >= 16
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn check_accepts_schema_v2_baseline_without_diagnostic_metadata() {
+    let temp = tempdir().unwrap();
+    fs::write(temp.path().join("compat.cpp"), "int main() { return 0; }\n").unwrap();
+    fs::write(
+        temp.path().join("baseline.json"),
+        include_str!("fixtures/reports/schema-v2-baseline.json"),
+    )
+    .unwrap();
+    let compiler = make_fake_warning_compiler(temp.path(), "compat-warning-clang");
+
+    let mut check = Command::cargo_bin("cppgauntlet").unwrap();
+    check
+        .current_dir(temp.path())
+        .args([
+            "check",
+            "compat.cpp",
+            "--compiler",
+            compiler.to_str().unwrap(),
+            "--sanitizers",
+            "none",
+            "--baseline",
+            "baseline.json",
+            "--fail-on-new-diagnostics",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Baseline: 0 new"))
+        .stdout(predicate::str::contains("policy: passed"));
+
+    let value = read_report(temp.path());
+    assert_eq!(
+        value["summary"]["baseline"]["baseline_unique_diagnostics"],
+        1
+    );
+    assert_eq!(
+        value["summary"]["baseline"]["new_diagnostic_occurrences"],
+        0
+    );
+    let diagnostic = &stage(&value, "compile")["diagnostics"][0];
+    assert_eq!(diagnostic["baseline_status"], "existing");
+    assert_eq!(diagnostic["location"]["uri"], "compat.cpp");
+    assert!(diagnostic["fingerprint"].as_str().unwrap().len() >= 16);
+}
+
+#[test]
 fn baseline_update_supports_json_and_markdown_output() {
     if !clang_available() {
         return;
@@ -2514,6 +2607,33 @@ if [ -z "$out" ]; then
   echo "missing output path" >&2
   exit 2
 fi
+cat > "$out" <<'SCRIPT'
+#!/bin/sh
+exit 0
+SCRIPT
+chmod +x "$out"
+"#,
+    )
+}
+
+#[cfg(unix)]
+fn make_fake_warning_compiler(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
+    make_fake_script(
+        dir,
+        name,
+        r#"out=""
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = "-o" ]; then
+    shift
+    out="$1"
+  fi
+  shift
+done
+if [ -z "$out" ]; then
+  echo "missing output path" >&2
+  exit 2
+fi
+echo "compat.cpp:1:5: warning: unused variable 'unused' [-Wunused-variable]" >&2
 cat > "$out" <<'SCRIPT'
 #!/bin/sh
 exit 0

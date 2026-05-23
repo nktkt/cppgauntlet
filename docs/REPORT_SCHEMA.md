@@ -61,6 +61,15 @@ The `coverage` object is omitted when coverage is not enabled or when coverage c
 The `baseline` object is omitted when no baseline report is configured.
 The top-level `markdown_report_path`, `html_report_path`, and `sarif_report_path` fields are omitted when those artifacts are not configured.
 
+## Compatibility
+
+CppGauntlet keeps compatibility fixtures for older report and baseline files. The current reader accepts:
+
+- schema version `1` reports that do not contain summary or stage `diagnostics` fields
+- schema version `2` diagnostics that do not contain `location` or `fingerprint` fields
+
+`baseline update` writes the normalized baseline with the current schema version. For schema version `1` reports, it rebuilds structured diagnostics from stage stdout/stderr when possible. For schema version `2` reports, it backfills diagnostic metadata when the older report contains raw diagnostic text.
+
 ## Stage
 
 Each stage describes one command or one skipped pipeline step:

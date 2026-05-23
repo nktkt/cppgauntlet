@@ -2,6 +2,8 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+pub const REPORT_SCHEMA_VERSION: u32 = 3;
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Report {
     pub schema_version: u32,
@@ -499,6 +501,7 @@ pub struct TargetInfo {
 pub struct Summary {
     pub warnings: usize,
     pub errors: usize,
+    #[serde(default)]
     pub diagnostics: usize,
     pub failed_stages: usize,
     pub timed_out_stages: usize,
@@ -543,6 +546,7 @@ pub struct StageReport {
     pub timed_out: bool,
     pub warnings: usize,
     pub errors: usize,
+    #[serde(default)]
     pub diagnostics: Vec<Diagnostic>,
     pub stdout: String,
     pub stderr: String,

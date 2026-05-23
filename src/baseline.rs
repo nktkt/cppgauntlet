@@ -6,7 +6,10 @@ use serde::Serialize;
 
 use crate::cli::{BaselineArgs, BaselineCommands, BaselineUpdateArgs};
 use crate::error::AppError;
-use crate::report::{BaselineSummary, Diagnostic, DiagnosticBaselineStatus, Report, StageReport};
+use crate::report::{
+    parse_diagnostics, BaselineSummary, Diagnostic, DiagnosticBaselineStatus, Report, StageReport,
+    REPORT_SCHEMA_VERSION,
+};
 
 #[derive(Clone, Debug)]
 pub struct Baseline {
@@ -251,6 +254,8 @@ pub fn run(args: BaselineArgs) -> Result<BaselineUpdateReport, AppError> {
 
 fn update(args: BaselineUpdateArgs) -> Result<BaselineUpdateReport, AppError> {
     let mut report = read_report(&args.report)?;
+    normalize_report_for_baseline(&mut report, &args.output);
+
     let diagnostics = report
         .stages
         .iter()
@@ -265,7 +270,6 @@ fn update(args: BaselineUpdateArgs) -> Result<BaselineUpdateReport, AppError> {
         .map(|path| baseline_change_summary(path, &current_fingerprints))
         .transpose()?;
 
-    normalize_report_for_baseline(&mut report, &args.output);
     write_baseline(&args.output, &report)?;
 
     let (
@@ -345,11 +349,18 @@ fn read_report(path: &Path) -> Result<Report, AppError> {
 }
 
 fn normalize_report_for_baseline(report: &mut Report, output: &Path) {
+    report.schema_version = REPORT_SCHEMA_VERSION;
     report.report_path = output.to_path_buf();
     report.markdown_report_path = None;
     report.html_report_path = None;
     report.sarif_report_path = None;
     report.summary.baseline = None;
+
+    for stage in &mut report.stages {
+        if stage.diagnostics.is_empty() {
+            stage.diagnostics = parse_diagnostics(&format!("{}\n{}", stage.stdout, stage.stderr));
+        }
+    }
 
     for diagnostic in report
         .stages
@@ -359,6 +370,12 @@ fn normalize_report_for_baseline(report: &mut Report, output: &Path) {
         diagnostic.ensure_metadata();
         diagnostic.baseline_status = None;
     }
+
+    report.summary.diagnostics = report
+        .stages
+        .iter()
+        .map(|stage| stage.diagnostics.len())
+        .sum();
 }
 
 fn write_baseline(path: &Path, report: &Report) -> Result<(), AppError> {
