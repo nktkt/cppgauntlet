@@ -89,11 +89,18 @@ Use [fuzz-crash-artifacts.yml](../examples/github-actions/fuzz-crash-artifacts.y
 
 The workflow runs `cppgauntlet check --fuzz`, uploads `.cppgauntlet/fuzz/artifacts/**` and `.cppgauntlet/fuzz/summaries/**`, then fails the job after upload if the fuzz gate failed.
 
+## Fuzz Corpus Retention
+
+Use [fuzz-corpus-retention.yml](../examples/github-actions/fuzz-corpus-retention.yml) for scheduled or manually triggered fuzz jobs that should keep corpus growth between runs.
+
+The workflow restores `.cppgauntlet/fuzz/corpus` with `actions/cache/restore@v5`, runs a longer fuzz pass, saves the updated corpus with `actions/cache/save@v5` when the fuzz gate passes, and uploads the retained corpus as a 30-day workflow artifact.
+
 ## Other Examples
 
 - [target-matrix.yml](../examples/github-actions/target-matrix.yml): run several CppGauntlet targets in parallel
 - [sanitizer-standard-matrix.yml](../examples/github-actions/sanitizer-standard-matrix.yml): run a single-file C++ target across C++ standards and sanitizer sets
 - [fuzz-crash-artifacts.yml](../examples/github-actions/fuzz-crash-artifacts.yml): upload libFuzzer crash artifacts and per-target summaries
+- [fuzz-corpus-retention.yml](../examples/github-actions/fuzz-corpus-retention.yml): retain libFuzzer corpus inputs across scheduled long-running jobs
 - [changed-line-coverage.yml](../examples/github-actions/changed-line-coverage.yml): gate pull requests on coverage for changed lines
 - [baseline-review.yml](../examples/github-actions/baseline-review.yml): compare against a diagnostic baseline and upload a candidate baseline
 - [code-scanning.yml](../examples/github-actions/code-scanning.yml): upload SARIF results to GitHub Code Scanning

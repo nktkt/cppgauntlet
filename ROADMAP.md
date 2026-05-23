@@ -193,12 +193,12 @@ Exit criteria:
 
 ## Near-Term Priorities
 
-1. Add fuzz corpus retention examples for long-running CI jobs.
-2. Add issue lifecycle stale/blocked guidance.
-3. Add SBOM policy checks.
-4. Add crates.io release dry-run automation.
-5. Add release download verification examples.
-6. Add Homebrew tap release draft automation.
+1. Add issue lifecycle stale/blocked guidance.
+2. Add SBOM policy checks.
+3. Add crates.io release dry-run automation.
+4. Add release download verification examples.
+5. Add Homebrew tap release draft automation.
+6. Add release artifact provenance verification CI examples.
 
 ## Non-Goals
 

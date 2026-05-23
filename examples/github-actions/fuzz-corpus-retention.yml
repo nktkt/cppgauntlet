@@ -1,0 +1,103 @@
+name: CppGauntlet fuzz corpus retention
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * *"
+
+jobs:
+  cppgauntlet-fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+
+    env:
+      CPPGAUNTLET_TARGET: .
+      CPPGAUNTLET_CONFIGURE_COMMAND: cmake -S . -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      CPPGAUNTLET_FUZZ_SECONDS: "900"
+      CPPGAUNTLET_FUZZ_CORPUS: ""
+      CPPGAUNTLET_CORPUS_CACHE_PATH: .cppgauntlet/fuzz/corpus
+      CPPGAUNTLET_REPORT: .cppgauntlet/cppgauntlet-report.json
+      CPPGAUNTLET_MARKDOWN: .cppgauntlet/cppgauntlet-report.md
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install C++ fuzzing tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build
+
+      - name: Install CppGauntlet
+        run: cargo install --git https://github.com/nktkt/cppgauntlet
+
+      - name: Configure project
+        if: env.CPPGAUNTLET_CONFIGURE_COMMAND != ''
+        shell: bash
+        run: bash -lc "$CPPGAUNTLET_CONFIGURE_COMMAND"
+
+      - name: Restore fuzz corpus cache
+        id: restore-corpus
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ env.CPPGAUNTLET_CORPUS_CACHE_PATH }}
+          key: cppgauntlet-fuzz-${{ runner.os }}-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            cppgauntlet-fuzz-${{ runner.os }}-${{ github.ref_name }}-
+            cppgauntlet-fuzz-${{ runner.os }}-
+
+      - name: Run CppGauntlet long fuzz pass
+        id: cppgauntlet
+        continue-on-error: true
+        shell: bash
+        run: |
+          mkdir -p .cppgauntlet
+          args=(
+            check "$CPPGAUNTLET_TARGET"
+            --fuzz
+            --fuzz-seconds "$CPPGAUNTLET_FUZZ_SECONDS"
+            --report "$CPPGAUNTLET_REPORT"
+            --markdown-report "$CPPGAUNTLET_MARKDOWN"
+          )
+          if [ -n "$CPPGAUNTLET_FUZZ_CORPUS" ]; then
+            args+=(--fuzz-corpus "$CPPGAUNTLET_FUZZ_CORPUS")
+          fi
+          cppgauntlet "${args[@]}"
+
+      - name: Save fuzz corpus cache
+        if: steps.cppgauntlet.outcome == 'success'
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ env.CPPGAUNTLET_CORPUS_CACHE_PATH }}
+          key: ${{ steps.restore-corpus.outputs.cache-primary-key }}
+
+      - name: Upload fuzz diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cppgauntlet-fuzz-diagnostics
+          retention-days: 30
+          path: |
+            .cppgauntlet/cppgauntlet-report.json
+            .cppgauntlet/cppgauntlet-report.md
+            .cppgauntlet/fuzz/artifacts/**
+            .cppgauntlet/fuzz/summaries/**
+          if-no-files-found: warn
+
+      - name: Upload retained fuzz corpus
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cppgauntlet-fuzz-corpus
+          retention-days: 30
+          path: .cppgauntlet/fuzz/corpus/**
+          if-no-files-found: warn
+
+      - name: Fail on CppGauntlet fuzz gate
+        if: steps.cppgauntlet.outcome == 'failure'
+        run: exit 1

@@ -76,6 +76,19 @@ The workflow:
 
 Download the `cppgauntlet-fuzz-artifacts` workflow artifact to inspect libFuzzer crash files and per-target summary JSON files.
 
+Use [examples/github-actions/fuzz-corpus-retention.yml](../examples/github-actions/fuzz-corpus-retention.yml) for scheduled or manually triggered long-running fuzz jobs that should reuse corpus inputs across runs.
+
+The retention workflow:
+
+- runs on `workflow_dispatch` and a nightly `schedule`
+- restores `.cppgauntlet/fuzz/corpus` with `actions/cache/restore@v5`
+- runs a longer fuzz pass with `CPPGAUNTLET_FUZZ_SECONDS`
+- saves the updated corpus with `actions/cache/save@v5` when the fuzz gate passes
+- uploads diagnostics, crash artifacts, summaries, and the retained corpus with `retention-days: 30`
+- fails the job after uploads when CppGauntlet finds a fuzz failure
+
+Keep the default corpus path when possible. For project fuzzing, CppGauntlet creates per-target corpus directories under `.cppgauntlet/fuzz/corpus/`, which makes the cache reusable across scheduled runs.
+
 Coverage-guided fuzzing trend reports are planned future work.
 `--coverage` is not supported together with `--fuzz` yet.
 

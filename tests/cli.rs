@@ -228,12 +228,29 @@ fn github_actions_compile_database_and_cmake_coverage_examples_are_documented() 
     assert!(fuzz_artifacts.contains(".cppgauntlet/fuzz/summaries/**"));
     assert!(fuzz_artifacts.contains("steps.cppgauntlet.outcome == 'failure'"));
 
+    let fuzz_retention =
+        fs::read_to_string("examples/github-actions/fuzz-corpus-retention.yml").unwrap();
+    assert!(fuzz_retention.contains("workflow_dispatch"));
+    assert!(fuzz_retention.contains("schedule:"));
+    assert!(fuzz_retention.contains("timeout-minutes: 90"));
+    assert!(fuzz_retention.contains("CPPGAUNTLET_FUZZ_SECONDS: \"900\""));
+    assert!(fuzz_retention.contains("CPPGAUNTLET_CORPUS_CACHE_PATH: .cppgauntlet/fuzz/corpus"));
+    assert!(fuzz_retention.contains("actions/cache/restore@v5"));
+    assert!(fuzz_retention.contains("actions/cache/save@v5"));
+    assert!(fuzz_retention.contains("cache-primary-key"));
+    assert!(fuzz_retention.contains("--fuzz-seconds \"$CPPGAUNTLET_FUZZ_SECONDS\""));
+    assert!(fuzz_retention.contains("retention-days: 30"));
+    assert!(fuzz_retention.contains("cppgauntlet-fuzz-corpus"));
+    assert!(fuzz_retention.contains(".cppgauntlet/fuzz/corpus/**"));
+    assert!(fuzz_retention.contains("steps.cppgauntlet.outcome == 'failure'"));
+
     let docs = fs::read_to_string("docs/GITHUB_ACTIONS.md").unwrap();
     assert!(docs.contains("../examples/github-actions/compile-database.yml"));
     assert!(docs.contains("../examples/github-actions/cmake-coverage.yml"));
     assert!(docs.contains("../examples/github-actions/target-matrix.yml"));
     assert!(docs.contains("../examples/github-actions/sanitizer-standard-matrix.yml"));
     assert!(docs.contains("../examples/github-actions/fuzz-crash-artifacts.yml"));
+    assert!(docs.contains("../examples/github-actions/fuzz-corpus-retention.yml"));
     assert!(docs.contains("CPPGAUNTLET_CONFIGURE_COMMAND"));
     assert!(docs.contains("CPPGAUNTLET_MIN_LINE_COVERAGE"));
     assert!(docs.contains("Target Matrix"));
@@ -244,6 +261,9 @@ fn github_actions_compile_database_and_cmake_coverage_examples_are_documented() 
         docs.contains("sanitizer sets: `none`, `address`, `undefined`, and `address,undefined`")
     );
     assert!(docs.contains("Fuzz Crash Artifacts"));
+    assert!(docs.contains("Fuzz Corpus Retention"));
+    assert!(docs.contains("actions/cache/restore@v5"));
+    assert!(docs.contains("actions/cache/save@v5"));
     assert!(docs.contains(".cppgauntlet/fuzz/artifacts/**"));
 
     let compilation_database_docs = fs::read_to_string("docs/COMPILATION_DATABASE.md").unwrap();
@@ -257,14 +277,18 @@ fn github_actions_compile_database_and_cmake_coverage_examples_are_documented() 
 
     let fuzzing_docs = fs::read_to_string("docs/FUZZING.md").unwrap();
     assert!(fuzzing_docs.contains("../examples/github-actions/fuzz-crash-artifacts.yml"));
+    assert!(fuzzing_docs.contains("../examples/github-actions/fuzz-corpus-retention.yml"));
     assert!(fuzzing_docs.contains("cppgauntlet-fuzz-artifacts"));
     assert!(fuzzing_docs.contains(".cppgauntlet/fuzz/summaries/**"));
+    assert!(fuzzing_docs.contains(".cppgauntlet/fuzz/corpus"));
+    assert!(fuzzing_docs.contains("retention-days: 30"));
 
     let readme = fs::read_to_string("README.md").unwrap();
     assert!(readme.contains("[docs/GITHUB_ACTIONS.md](docs/GITHUB_ACTIONS.md)"));
     assert!(readme.contains("reusable GitHub Actions examples and matrix workflows"));
     assert!(readme.contains("sanitizer, and C++ standard checks"));
     assert!(readme.contains("CI crash artifact uploads"));
+    assert!(readme.contains("scheduled corpus retention examples"));
 }
 
 #[test]
