@@ -2,6 +2,8 @@
 
 CppGauntlet uses GitHub Actions to keep issue triage and pull request metadata consistent without requiring contributors to remember repository-specific labels.
 
+See [LABEL_TAXONOMY.md](LABEL_TAXONOMY.md) for the full support stage, work type, and product area label taxonomy.
+
 ## Workflow
 
 The automation lives in [.github/workflows/contributor-automation.yml](../.github/workflows/contributor-automation.yml).
@@ -41,6 +43,8 @@ Pull request automation applies `needs-review` or `status: draft`, then labels t
 - report, schema, and SARIF paths -> `area: reports`
 - coverage paths -> `area: coverage`
 - fuzzing paths -> `area: fuzzing`
+
+The taxonomy document is the source of truth for label meaning. The workflow is the executable mapping from issue text and pull request paths to that taxonomy.
 
 ## Pull Request Body Check
 

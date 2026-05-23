@@ -228,6 +228,9 @@ fn contribution_metadata_is_documented() {
         fs::read_to_string(".github/ISSUE_TEMPLATE/feature_request.yml").unwrap();
     assert!(feature_template.contains("name: Feature request"));
     assert!(feature_template.contains("Proposed behavior"));
+    assert!(feature_template.contains("Core implementation"));
+    assert!(feature_template.contains("Baselines"));
+    assert!(feature_template.contains("Tests"));
 }
 
 #[test]
@@ -251,12 +254,39 @@ fn contributor_automation_workflow_is_documented() {
     assert!(docs.contains("does not checkout or execute pull request code"));
     assert!(docs.contains("needs-triage"));
     assert!(docs.contains("needs-review"));
+    assert!(docs.contains("LABEL_TAXONOMY.md"));
+
+    let taxonomy = fs::read_to_string("docs/LABEL_TAXONOMY.md").unwrap();
+    assert!(taxonomy.contains("## Support Stage Labels"));
+    assert!(taxonomy.contains("## Work Type Labels"));
+    assert!(taxonomy.contains("## Product Area Labels"));
+    assert!(taxonomy.contains("`needs-triage`"));
+    assert!(taxonomy.contains("`needs-review`"));
+    assert!(taxonomy.contains("`status: draft`"));
+    assert!(taxonomy.contains("`bug`"));
+    assert!(taxonomy.contains("`enhancement`"));
+    assert!(taxonomy.contains("`area: baseline`"));
+    assert!(taxonomy.contains("`area: build-systems`"));
+    assert!(taxonomy.contains("`area: ci`"));
+    assert!(taxonomy.contains("`area: cli`"));
+    assert!(taxonomy.contains("`area: configuration`"));
+    assert!(taxonomy.contains("`area: core`"));
+    assert!(taxonomy.contains("`area: coverage`"));
+    assert!(taxonomy.contains("`area: docs`"));
+    assert!(taxonomy.contains("`area: fuzzing`"));
+    assert!(taxonomy.contains("`area: reports`"));
+    assert!(taxonomy.contains("`area: static-analysis`"));
+    assert!(taxonomy.contains("`area: tests`"));
+    assert!(taxonomy.contains("examples/github-actions/**"));
+    assert!(taxonomy.contains("Use lower-case labels"));
 
     let contributing = fs::read_to_string("CONTRIBUTING.md").unwrap();
     assert!(contributing.contains("docs/CONTRIBUTOR_AUTOMATION.md"));
 
     let readme = fs::read_to_string("README.md").unwrap();
     assert!(readme.contains("[docs/CONTRIBUTOR_AUTOMATION.md](docs/CONTRIBUTOR_AUTOMATION.md)"));
+    assert!(readme.contains("[docs/LABEL_TAXONOMY.md](docs/LABEL_TAXONOMY.md)"));
+    assert!(readme.contains("documented label taxonomy"));
 }
 
 #[test]
