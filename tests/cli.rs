@@ -303,6 +303,7 @@ fn release_packaging_metadata_is_documented() {
     assert!(cargo.contains("\"development-tools::testing\""));
     assert!(cargo.contains("\"docs/**\""));
     assert!(cargo.contains("\"examples/**\""));
+    assert!(cargo.contains("\"scripts/**\""));
 
     let readme = fs::read_to_string("README.md").unwrap();
     assert!(readme.contains("[docs/INSTALLATION.md](docs/INSTALLATION.md)"));
@@ -315,6 +316,7 @@ fn release_packaging_metadata_is_documented() {
     let release = fs::read_to_string("docs/RELEASE.md").unwrap();
     assert!(release.contains("cargo package --list"));
     assert!(release.contains("cargo package --no-verify"));
+    assert!(release.contains("bash scripts/verify-report-schema-compat.sh"));
     assert!(release.contains(".github/workflows/release.yml"));
     assert!(release.contains("cppgauntlet-<version>-<platform>-<arch>.tar.gz"));
     assert!(release.contains("cppgauntlet-<version>-<platform>-<arch>.intoto.jsonl"));
@@ -339,6 +341,8 @@ fn release_build_workflow_is_documented() {
     assert!(workflow.contains("ubuntu-latest"));
     assert!(workflow.contains("macos-latest"));
     assert!(workflow.contains("cargo test --locked"));
+    assert!(workflow.contains("Verify report schema compatibility"));
+    assert!(workflow.contains("bash scripts/verify-report-schema-compat.sh"));
     assert!(workflow.contains("cargo build --release --locked"));
     assert!(workflow.contains("actions/attest-build-provenance@v4.1.0"));
     assert!(workflow.contains("subject-path:"));
@@ -360,9 +364,17 @@ fn release_build_workflow_is_documented() {
     assert!(installation.contains("--repo nktkt/cppgauntlet"));
 
     let readme = fs::read_to_string("README.md").unwrap();
+    assert!(readme.contains("schema compatibility tests and release gates"));
     assert!(readme.contains("signed release artifact attestations"));
     assert!(readme.contains("generated GitHub release notes"));
     assert!(readme.contains("automated macOS/Linux release builds"));
+
+    let migration_docs = fs::read_to_string("docs/REPORT_SCHEMA_MIGRATIONS.md").unwrap();
+    assert!(migration_docs.contains("Release Candidate Gate"));
+    assert!(migration_docs.contains("bash scripts/verify-report-schema-compat.sh"));
+
+    let script = fs::read_to_string("scripts/verify-report-schema-compat.sh").unwrap();
+    assert!(script.contains("cargo test --locked --test cli schema"));
 }
 
 #[test]

@@ -17,6 +17,7 @@ Run:
 cargo fmt --all -- --check
 cargo clippy --all-targets -- -D warnings
 cargo test
+bash scripts/verify-report-schema-compat.sh
 cargo package --list
 cargo package --no-verify
 ```
@@ -31,6 +32,7 @@ Inspect the package file list and make sure it includes:
 - `README.md`
 - `docs/`
 - `examples/`
+- `scripts/`
 - `src/`
 - `tests/`
 
@@ -55,8 +57,11 @@ For each platform, the workflow runs:
 
 ```bash
 cargo test --locked
+bash scripts/verify-report-schema-compat.sh
 cargo build --release --locked
 ```
+
+The schema compatibility gate exercises older report and baseline fixtures before release binaries are built.
 
 It packages:
 

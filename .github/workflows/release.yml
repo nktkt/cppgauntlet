@@ -34,6 +34,9 @@ jobs:
       - name: Test
         run: cargo test --locked
 
+      - name: Verify report schema compatibility
+        run: bash scripts/verify-report-schema-compat.sh
+
       - name: Build release binary
         run: cargo build --release --locked
 

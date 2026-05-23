@@ -101,3 +101,19 @@ Before changing the report contract:
 8. Include the compatibility impact in the pull request description.
 
 Breaking changes should keep at least one migration path through `baseline update` whenever the old report contains enough raw information to recover the new structure.
+
+## Release Candidate Gate
+
+Before a release candidate is built, the release workflow runs:
+
+```bash
+bash scripts/verify-report-schema-compat.sh
+```
+
+The script runs the schema compatibility subset of the Rust integration tests:
+
+```bash
+cargo test --locked --test cli schema
+```
+
+This gate keeps older report and baseline fixtures deserializable before tagged release artifacts are built.

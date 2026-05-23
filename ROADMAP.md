@@ -193,12 +193,12 @@ Exit criteria:
 
 ## Near-Term Priorities
 
-1. Add schema compatibility automation for release candidates.
-2. Add reusable workflow matrices for multi-target CI.
-3. Add fuzz crash artifact upload examples for GitHub Actions.
-4. Add issue priority labels and escalation guidance.
-5. Add release SBOM generation.
-6. Add release notes policy configuration.
+1. Add reusable workflow matrices for multi-target CI.
+2. Add fuzz crash artifact upload examples for GitHub Actions.
+3. Add issue priority labels and escalation guidance.
+4. Add release SBOM generation.
+5. Add release notes policy configuration.
+6. Add package smoke tests for generated release archives.
 
 ## Non-Goals
 
