@@ -1,6 +1,6 @@
 # Release Checklist
 
-CppGauntlet has automated GitHub release builds for macOS and Linux. The release workflow builds release binaries, packages archives, writes SHA-256 checksums, smoke-tests generated archives, generates CycloneDX SBOMs, creates signed GitHub artifact attestations, generates categorized release notes from merged pull requests, uploads workflow artifacts, and attaches assets to tagged GitHub releases.
+CppGauntlet has automated GitHub release builds for macOS and Linux. The release workflow builds release binaries, packages archives, writes SHA-256 checksums, smoke-tests generated archives, generates policy-checked CycloneDX SBOMs, creates signed GitHub artifact attestations, generates categorized release notes from merged pull requests, uploads workflow artifacts, and attaches assets to tagged GitHub releases.
 
 ## Version Metadata
 
@@ -19,6 +19,7 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 bash scripts/verify-report-schema-compat.sh
 bash scripts/generate-release-sbom.sh /tmp/cppgauntlet.cdx.json
+bash scripts/verify-release-sbom-policy.sh /tmp/cppgauntlet.cdx.json
 cargo package --list
 cargo package --no-verify
 ```
@@ -112,6 +113,14 @@ The SBOM is generated from locked Cargo metadata:
 ```bash
 bash scripts/generate-release-sbom.sh dist/cppgauntlet-v0.1.0-linux-x86_64.cdx.json
 ```
+
+The release workflow verifies the generated SBOM before attestation and upload:
+
+```bash
+bash scripts/verify-release-sbom-policy.sh dist/cppgauntlet-v0.1.0-linux-x86_64.cdx.json
+```
+
+The policy check compares the SBOM against locked Cargo metadata. It requires CycloneDX 1.5, a root `metadata.component` for CppGauntlet, one library component for every locked dependency, stable package URLs, license expressions when Cargo metadata provides them, distribution references for registry packages, and dependency edges that match `cargo metadata --locked`.
 
 The SBOM is uploaded as a workflow artifact, attached to tagged GitHub releases, and included in the GitHub artifact attestation subjects.
 
@@ -211,5 +220,5 @@ Planned follow-up automation:
 
 - crates.io publication
 - Homebrew formula update
-- SBOM policy checks
 - release download verification examples
+- release artifact provenance verification CI examples

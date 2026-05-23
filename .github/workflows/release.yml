@@ -91,6 +91,12 @@ jobs:
           bash scripts/generate-release-sbom.sh "$sbom"
           echo "sbom=$sbom" >> "$GITHUB_OUTPUT"
 
+      - name: Verify release SBOM policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/verify-release-sbom-policy.sh "${{ steps.sbom.outputs.sbom }}"
+
       - name: Attest release artifacts
         id: attest
         uses: actions/attest-build-provenance@v4.1.0

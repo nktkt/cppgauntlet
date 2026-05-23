@@ -458,6 +458,9 @@ fn release_packaging_metadata_is_documented() {
     assert!(release.contains("cargo package --no-verify"));
     assert!(release.contains("bash scripts/verify-report-schema-compat.sh"));
     assert!(release.contains("bash scripts/generate-release-sbom.sh"));
+    assert!(release.contains("bash scripts/verify-release-sbom-policy.sh"));
+    assert!(release.contains("CycloneDX 1.5"));
+    assert!(release.contains("dependency edges that match `cargo metadata --locked`"));
     assert!(release.contains("bash scripts/smoke-release-archive.sh"));
     assert!(release.contains("Archive Smoke Test"));
     assert!(release.contains("cppgauntlet --version"));
@@ -501,6 +504,8 @@ fn release_build_workflow_is_documented() {
     assert!(workflow.contains("steps.package.outputs.checksum"));
     assert!(workflow.contains("Generate release SBOM"));
     assert!(workflow.contains("bash scripts/generate-release-sbom.sh"));
+    assert!(workflow.contains("Verify release SBOM policy"));
+    assert!(workflow.contains("bash scripts/verify-release-sbom-policy.sh"));
     assert!(workflow.contains("steps.sbom.outputs.sbom"));
     assert!(workflow.contains("actions/attest-build-provenance@v4.1.0"));
     assert!(workflow.contains("subject-path:"));
@@ -525,7 +530,7 @@ fn release_build_workflow_is_documented() {
     let readme = fs::read_to_string("README.md").unwrap();
     assert!(readme.contains("schema compatibility tests and release gates"));
     assert!(readme.contains("release archive smoke tests"));
-    assert!(readme.contains("CycloneDX release SBOMs"));
+    assert!(readme.contains("policy-checked CycloneDX release SBOMs"));
     assert!(readme.contains("signed release artifact attestations"));
     assert!(readme.contains("generated GitHub release notes with a repository policy"));
     assert!(readme.contains("automated macOS/Linux release builds"));
@@ -558,6 +563,14 @@ fn release_build_workflow_is_documented() {
     assert!(sbom_script.contains("cargo metadata --locked --format-version 1"));
     assert!(sbom_script.contains("bomFormat: \"CycloneDX\""));
     assert!(sbom_script.contains("specVersion: \"1.5\""));
+
+    let sbom_policy_script = fs::read_to_string("scripts/verify-release-sbom-policy.sh").unwrap();
+    assert!(sbom_policy_script.contains("cargo metadata --locked --format-version 1"));
+    assert!(sbom_policy_script.contains("bom.bomFormat"));
+    assert!(sbom_policy_script.contains("bom.metadata.component"));
+    assert!(sbom_policy_script.contains("components[] count must match locked dependency count"));
+    assert!(sbom_policy_script.contains("dependencies[] count must match cargo resolve node count"));
+    assert!(sbom_policy_script.contains("SBOM policy check passed"));
 
     let smoke_script = fs::read_to_string("scripts/smoke-release-archive.sh").unwrap();
     assert!(smoke_script.contains("shasum -a 256 -c"));
@@ -636,6 +649,46 @@ esac
         "stdout:\n{}\nstderr:\n{}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn release_sbom_policy_script_accepts_generated_sbom() {
+    if !node_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    let sbom = temp.path().join("cppgauntlet.cdx.json");
+    let generate_script = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("scripts")
+        .join("generate-release-sbom.sh");
+    let verify_script = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("scripts")
+        .join("verify-release-sbom-policy.sh");
+
+    let generate = StdCommand::new("bash")
+        .arg(generate_script)
+        .arg(&sbom)
+        .output()
+        .unwrap();
+    assert!(
+        generate.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&generate.stdout),
+        String::from_utf8_lossy(&generate.stderr)
+    );
+
+    let verify = StdCommand::new("bash")
+        .arg(verify_script)
+        .arg(&sbom)
+        .output()
+        .unwrap();
+    assert!(
+        verify.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&verify.stdout),
+        String::from_utf8_lossy(&verify.stderr)
     );
 }
 
@@ -3175,6 +3228,10 @@ fn cmake_available() -> bool {
 
 fn ctest_available() -> bool {
     StdCommand::new("ctest").arg("--version").output().is_ok()
+}
+
+fn node_available() -> bool {
+    StdCommand::new("node").arg("--version").output().is_ok()
 }
 
 fn copy_fixture(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
