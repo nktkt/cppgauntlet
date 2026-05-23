@@ -34,6 +34,8 @@ Missing labels are created automatically with stable colors and descriptions.
 
 Priority escalation remains a maintainer decision. Use [LABEL_TAXONOMY.md](LABEL_TAXONOMY.md) to decide when to move an issue to `priority: critical`, `priority: high`, `priority: medium`, or `priority: low`.
 
+The workflow also creates managed release labels such as `release: breaking`, `release: highlight`, and `release: skip`. Maintainers apply those labels manually when a pull request needs special placement or exclusion in generated release notes.
+
 ## Pull Request Labels
 
 Pull request automation applies `needs-review` or `status: draft`, then labels the pull request from changed files:

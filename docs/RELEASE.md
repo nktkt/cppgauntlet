@@ -1,6 +1,6 @@
 # Release Checklist
 
-CppGauntlet has automated GitHub release builds for macOS and Linux. The release workflow builds release binaries, packages archives, writes SHA-256 checksums, generates CycloneDX SBOMs, creates signed GitHub artifact attestations, generates release notes from merged pull requests, uploads workflow artifacts, and attaches assets to tagged GitHub releases.
+CppGauntlet has automated GitHub release builds for macOS and Linux. The release workflow builds release binaries, packages archives, writes SHA-256 checksums, generates CycloneDX SBOMs, creates signed GitHub artifact attestations, generates categorized release notes from merged pull requests, uploads workflow artifacts, and attaches assets to tagged GitHub releases.
 
 ## Version Metadata
 
@@ -105,6 +105,7 @@ gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
   -X POST \
   -f tag_name="${GITHUB_REF_NAME}" \
   -f target_commitish="${GITHUB_SHA}" \
+  -f configuration_file_path=".github/release.yml" \
   --jq '.body'
 ```
 
@@ -121,6 +122,26 @@ gh release create "$tag" --title "$tag" --notes-file <release-notes.md>
 ```
 
 Manual `workflow_dispatch` builds write a short manual-build note instead of creating a GitHub release.
+
+## Release Notes Policy
+
+The generated release notes policy lives in [.github/release.yml](../.github/release.yml).
+
+The policy excludes pull requests labeled `release: skip` and pull requests authored by `github-actions[bot]`. Remaining pull requests are grouped by label into:
+
+- Breaking Changes: `release: breaking`
+- Highlights: `release: highlight`
+- Features: `enhancement`
+- Bug Fixes: `bug`
+- CI and Release: `area: ci`
+- Documentation: `area: docs`
+- Reports and Baselines: `area: reports`, `area: baseline`
+- Coverage and Fuzzing: `area: coverage`, `area: fuzzing`
+- Build Systems: `area: build-systems`
+- Tests: `area: tests`
+- Other Changes: `*`
+
+Before tagging a release, review merged pull requests and add `release: breaking`, `release: highlight`, or `release: skip` where the default area and work-type labels would produce the wrong release-note placement.
 
 ## Artifact Signing
 
@@ -171,5 +192,5 @@ Planned follow-up automation:
 
 - crates.io publication
 - Homebrew formula update
-- release notes policy configuration
+- package archive smoke tests
 - SBOM policy checks

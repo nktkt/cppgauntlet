@@ -282,6 +282,9 @@ fn contributor_automation_workflow_is_documented() {
     assert!(workflow.contains("priority: high"));
     assert!(workflow.contains("priority: medium"));
     assert!(workflow.contains("priority: low"));
+    assert!(workflow.contains("release: breaking"));
+    assert!(workflow.contains("release: highlight"));
+    assert!(workflow.contains("release: skip"));
     assert!(workflow.contains("hasPriority"));
     assert!(workflow.contains("startsWith(\"priority: \")"));
     assert!(workflow.contains("new Set(Object.keys(labelDefinitions))"));
@@ -299,12 +302,16 @@ fn contributor_automation_workflow_is_documented() {
     assert!(docs.contains("needs-review"));
     assert!(docs.contains("priority: needs-priority"));
     assert!(docs.contains("priority: critical"));
+    assert!(docs.contains("release: breaking"));
+    assert!(docs.contains("release: highlight"));
+    assert!(docs.contains("release: skip"));
     assert!(docs.contains("LABEL_TAXONOMY.md"));
 
     let taxonomy = fs::read_to_string("docs/LABEL_TAXONOMY.md").unwrap();
     assert!(taxonomy.contains("## Support Stage Labels"));
     assert!(taxonomy.contains("## Work Type Labels"));
     assert!(taxonomy.contains("## Priority Labels"));
+    assert!(taxonomy.contains("## Release Labels"));
     assert!(taxonomy.contains("## Product Area Labels"));
     assert!(taxonomy.contains("## Escalation Guidance"));
     assert!(taxonomy.contains("`needs-triage`"));
@@ -317,6 +324,9 @@ fn contributor_automation_workflow_is_documented() {
     assert!(taxonomy.contains("`priority: high`"));
     assert!(taxonomy.contains("`priority: medium`"));
     assert!(taxonomy.contains("`priority: low`"));
+    assert!(taxonomy.contains("`release: breaking`"));
+    assert!(taxonomy.contains("`release: highlight`"));
+    assert!(taxonomy.contains("`release: skip`"));
     assert!(taxonomy.contains("`area: baseline`"));
     assert!(taxonomy.contains("`area: build-systems`"));
     assert!(taxonomy.contains("`area: ci`"));
@@ -332,6 +342,7 @@ fn contributor_automation_workflow_is_documented() {
     assert!(taxonomy.contains("examples/github-actions/**"));
     assert!(taxonomy.contains("Use lower-case labels"));
     assert!(taxonomy.contains("Use `priority: <name>`"));
+    assert!(taxonomy.contains("Use `release: <name>`"));
     assert!(taxonomy.contains("schema compatibility regression"));
 
     let contributing = fs::read_to_string("CONTRIBUTING.md").unwrap();
@@ -379,6 +390,11 @@ fn release_packaging_metadata_is_documented() {
     assert!(release.contains("cppgauntlet-<version>-<platform>-<arch>.intoto.jsonl"));
     assert!(release.contains("Generated Release Notes"));
     assert!(release.contains("releases/generate-notes"));
+    assert!(release.contains("-f configuration_file_path=\".github/release.yml\""));
+    assert!(release.contains("Release Notes Policy"));
+    assert!(release.contains("release: breaking"));
+    assert!(release.contains("release: highlight"));
+    assert!(release.contains("release: skip"));
     assert!(release.contains("--notes-file <release-notes.md>"));
     assert!(release.contains("gh attestation verify"));
     assert!(release.contains("--signer-workflow nktkt/cppgauntlet/.github/workflows/release.yml"));
@@ -410,6 +426,7 @@ fn release_build_workflow_is_documented() {
     assert!(workflow.contains("steps.attest.outputs.bundle-path"));
     assert!(workflow.contains("Generate release notes"));
     assert!(workflow.contains("releases/generate-notes"));
+    assert!(workflow.contains("configuration_file_path=\".github/release.yml\""));
     assert!(workflow.contains("-release-notes.md"));
     assert!(workflow.contains("--notes-file"));
     assert!(workflow.contains("actions/upload-artifact@v4"));
@@ -427,8 +444,25 @@ fn release_build_workflow_is_documented() {
     assert!(readme.contains("schema compatibility tests and release gates"));
     assert!(readme.contains("CycloneDX release SBOMs"));
     assert!(readme.contains("signed release artifact attestations"));
-    assert!(readme.contains("generated GitHub release notes"));
+    assert!(readme.contains("generated GitHub release notes with a repository policy"));
     assert!(readme.contains("automated macOS/Linux release builds"));
+
+    let release_policy = fs::read_to_string(".github/release.yml").unwrap();
+    assert!(release_policy.contains("changelog:"));
+    assert!(release_policy.contains("\"release: skip\""));
+    assert!(release_policy.contains("github-actions[bot]"));
+    assert!(release_policy.contains("Breaking Changes"));
+    assert!(release_policy.contains("\"release: breaking\""));
+    assert!(release_policy.contains("Highlights"));
+    assert!(release_policy.contains("\"release: highlight\""));
+    assert!(release_policy.contains("Features"));
+    assert!(release_policy.contains("enhancement"));
+    assert!(release_policy.contains("Bug Fixes"));
+    assert!(release_policy.contains("bug"));
+    assert!(release_policy.contains("CI and Release"));
+    assert!(release_policy.contains("\"area: ci\""));
+    assert!(release_policy.contains("Other Changes"));
+    assert!(release_policy.contains("\"*\""));
 
     let migration_docs = fs::read_to_string("docs/REPORT_SCHEMA_MIGRATIONS.md").unwrap();
     assert!(migration_docs.contains("Release Candidate Gate"));

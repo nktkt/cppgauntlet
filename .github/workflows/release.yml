@@ -115,6 +115,7 @@ jobs:
               -X POST \
               -f tag_name="${GITHUB_REF_NAME}" \
               -f target_commitish="${GITHUB_SHA}" \
+              -f configuration_file_path=".github/release.yml" \
               --jq '.body' > "$notes"
           else
             {

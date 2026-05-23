@@ -1,0 +1,42 @@
+changelog:
+  exclude:
+    labels:
+      - "release: skip"
+    authors:
+      - github-actions[bot]
+  categories:
+    - title: Breaking Changes
+      labels:
+        - "release: breaking"
+    - title: Highlights
+      labels:
+        - "release: highlight"
+    - title: Features
+      labels:
+        - enhancement
+    - title: Bug Fixes
+      labels:
+        - bug
+    - title: CI and Release
+      labels:
+        - "area: ci"
+    - title: Documentation
+      labels:
+        - "area: docs"
+    - title: Reports and Baselines
+      labels:
+        - "area: reports"
+        - "area: baseline"
+    - title: Coverage and Fuzzing
+      labels:
+        - "area: coverage"
+        - "area: fuzzing"
+    - title: Build Systems
+      labels:
+        - "area: build-systems"
+    - title: Tests
+      labels:
+        - "area: tests"
+    - title: Other Changes
+      labels:
+        - "*"

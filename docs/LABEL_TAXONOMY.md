@@ -37,6 +37,18 @@ Priority labels are assigned during maintainer triage. Issue automation applies 
 
 Only one priority label should be active at a time.
 
+## Release Labels
+
+Release labels tune generated GitHub release notes. Maintainers apply these labels to merged pull requests before tagging a release.
+
+| Label | Meaning | Release notes effect |
+| --- | --- | --- |
+| `release: breaking` | A user-visible breaking change. | Places the pull request in Breaking Changes. |
+| `release: highlight` | A change that should be called out near the top of the release. | Places the pull request in Highlights. |
+| `release: skip` | Internal or noisy work that should not appear in release notes. | Excludes the pull request from generated release notes. |
+
+Use release labels sparingly. Area and work-type labels should handle normal categorization.
+
 ## Product Area Labels
 
 Use area labels to route work to the relevant subsystem.
@@ -59,6 +71,8 @@ Use area labels to route work to the relevant subsystem.
 ## Automation Rules
 
 Issue automation applies `needs-triage`, `priority: needs-priority` when no priority exists, and area labels from the issue title and body.
+
+Both issue and pull request automation create missing managed release labels so maintainers can apply them consistently.
 
 Pull request automation applies `needs-review` or `status: draft`, then maps changed files to area labels:
 
@@ -90,6 +104,7 @@ When escalating, leave a short comment with the concrete trigger, such as failin
 - Use lower-case labels.
 - Use `area: <name>` for product areas.
 - Use `priority: <name>` for maintainer priority.
+- Use `release: <name>` for generated release notes policy.
 - Use `status: <name>` for workflow state.
 - Keep unscoped labels only for common GitHub issue types such as `bug` and `enhancement`.
 - Prefer adding a documented label to inventing an ad hoc one in a single issue.

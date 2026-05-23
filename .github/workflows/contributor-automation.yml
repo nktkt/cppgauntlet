@@ -32,6 +32,9 @@ jobs:
               "priority: high": { color: "d93f0b", description: "Important regression or blocked workflow" },
               "priority: medium": { color: "fbca04", description: "Useful work with no immediate release risk" },
               "priority: low": { color: "cfd3d7", description: "Opportunistic cleanup or polish" },
+              "release: breaking": { color: "b60205", description: "Breaking change for generated release notes" },
+              "release: highlight": { color: "5319e7", description: "Highlight in generated release notes" },
+              "release: skip": { color: "ededed", description: "Exclude from generated release notes" },
               "area: baseline": { color: "5319e7", description: "Diagnostic baseline workflow" },
               "area: build-systems": { color: "1d76db", description: "CMake or compilation database support" },
               "area: ci": { color: "0e8a16", description: "CI and GitHub Actions integration" },
@@ -131,7 +134,10 @@ jobs:
               "area: core": { color: "1d76db", description: "Rust CLI implementation" },
               "area: reports": { color: "5319e7", description: "JSON, Markdown, HTML, or SARIF reports" },
               "area: coverage": { color: "0e8a16", description: "LLVM coverage workflow" },
-              "area: fuzzing": { color: "d93f0b", description: "libFuzzer workflow" }
+              "area: fuzzing": { color: "d93f0b", description: "libFuzzer workflow" },
+              "release: breaking": { color: "b60205", description: "Breaking change for generated release notes" },
+              "release: highlight": { color: "5319e7", description: "Highlight in generated release notes" },
+              "release: skip": { color: "ededed", description: "Exclude from generated release notes" }
             };
 
             const labels = new Set([pull.draft ? "status: draft" : "needs-review"]);
@@ -160,6 +166,7 @@ jobs:
               }
             }
 
+            await ensureLabels(labelDefinitions, new Set(Object.keys(labelDefinitions)));
             await ensureLabels(labelDefinitions, labels);
             await github.rest.issues.addLabels({
               owner: context.repo.owner,
