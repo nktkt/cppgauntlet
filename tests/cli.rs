@@ -197,6 +197,25 @@ fn github_actions_compile_database_and_cmake_coverage_examples_are_documented() 
     assert!(target_matrix.contains("matrix.artifact"));
     assert!(target_matrix.contains("steps.cppgauntlet.outcome == 'failure'"));
 
+    let sanitizer_matrix =
+        fs::read_to_string("examples/github-actions/sanitizer-standard-matrix.yml").unwrap();
+    assert!(sanitizer_matrix.contains("standard: [c++17, c++20, c++23]"));
+    assert!(sanitizer_matrix.contains("name: no-sanitizers"));
+    assert!(sanitizer_matrix.contains("flags: none"));
+    assert!(sanitizer_matrix.contains("name: address"));
+    assert!(sanitizer_matrix.contains("flags: address"));
+    assert!(sanitizer_matrix.contains("name: undefined"));
+    assert!(sanitizer_matrix.contains("flags: undefined"));
+    assert!(sanitizer_matrix.contains("name: address-undefined"));
+    assert!(sanitizer_matrix.contains("flags: address,undefined"));
+    assert!(sanitizer_matrix.contains("CPPGAUNTLET_STANDARD"));
+    assert!(sanitizer_matrix.contains("CPPGAUNTLET_SANITIZERS"));
+    assert!(sanitizer_matrix.contains("--standard \"$CPPGAUNTLET_STANDARD\""));
+    assert!(sanitizer_matrix.contains("--sanitizers \"$CPPGAUNTLET_SANITIZERS\""));
+    assert!(sanitizer_matrix.contains("matrix.sanitizer.name"));
+    assert!(sanitizer_matrix.contains("continue-on-error: true"));
+    assert!(sanitizer_matrix.contains("steps.cppgauntlet.outcome == 'failure'"));
+
     let fuzz_artifacts =
         fs::read_to_string("examples/github-actions/fuzz-crash-artifacts.yml").unwrap();
     assert!(fuzz_artifacts.contains("CPPGAUNTLET_FUZZ_SECONDS"));
@@ -213,11 +232,17 @@ fn github_actions_compile_database_and_cmake_coverage_examples_are_documented() 
     assert!(docs.contains("../examples/github-actions/compile-database.yml"));
     assert!(docs.contains("../examples/github-actions/cmake-coverage.yml"));
     assert!(docs.contains("../examples/github-actions/target-matrix.yml"));
+    assert!(docs.contains("../examples/github-actions/sanitizer-standard-matrix.yml"));
     assert!(docs.contains("../examples/github-actions/fuzz-crash-artifacts.yml"));
     assert!(docs.contains("CPPGAUNTLET_CONFIGURE_COMMAND"));
     assert!(docs.contains("CPPGAUNTLET_MIN_LINE_COVERAGE"));
     assert!(docs.contains("Target Matrix"));
     assert!(docs.contains("single-file smoke check"));
+    assert!(docs.contains("Sanitizer and Standard Matrix"));
+    assert!(docs.contains("C++ standards: `c++17`, `c++20`, and `c++23`"));
+    assert!(
+        docs.contains("sanitizer sets: `none`, `address`, `undefined`, and `address,undefined`")
+    );
     assert!(docs.contains("Fuzz Crash Artifacts"));
     assert!(docs.contains(".cppgauntlet/fuzz/artifacts/**"));
 
@@ -238,6 +263,7 @@ fn github_actions_compile_database_and_cmake_coverage_examples_are_documented() 
     let readme = fs::read_to_string("README.md").unwrap();
     assert!(readme.contains("[docs/GITHUB_ACTIONS.md](docs/GITHUB_ACTIONS.md)"));
     assert!(readme.contains("reusable GitHub Actions examples and matrix workflows"));
+    assert!(readme.contains("sanitizer, and C++ standard checks"));
     assert!(readme.contains("CI crash artifact uploads"));
 }
 

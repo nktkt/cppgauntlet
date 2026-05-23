@@ -64,6 +64,25 @@ Each matrix entry owns:
 
 For arguments that need shell quoting, prefer moving options into `cppgauntlet.yaml` and keep the matrix `args` value simple.
 
+## Sanitizer and Standard Matrix
+
+Use [sanitizer-standard-matrix.yml](../examples/github-actions/sanitizer-standard-matrix.yml) when a single-file C++ entry point should be checked across language standards and sanitizer sets.
+
+The example matrix runs:
+
+- C++ standards: `c++17`, `c++20`, and `c++23`
+- sanitizer sets: `none`, `address`, `undefined`, and `address,undefined`
+
+Each matrix entry runs:
+
+```bash
+cppgauntlet check "$CPPGAUNTLET_TARGET" \
+  --standard "$CPPGAUNTLET_STANDARD" \
+  --sanitizers "$CPPGAUNTLET_SANITIZERS"
+```
+
+Use this workflow for fast compatibility coverage on standalone examples, smoke-test binaries, or small command-line entry points. For project-wide build-system coverage, prefer `compile-database.yml`, `cmake-coverage.yml`, or `target-matrix.yml`.
+
 ## Fuzz Crash Artifacts
 
 Use [fuzz-crash-artifacts.yml](../examples/github-actions/fuzz-crash-artifacts.yml) when fuzz smoke checks should preserve crash files for later inspection.
@@ -73,6 +92,7 @@ The workflow runs `cppgauntlet check --fuzz`, uploads `.cppgauntlet/fuzz/artifac
 ## Other Examples
 
 - [target-matrix.yml](../examples/github-actions/target-matrix.yml): run several CppGauntlet targets in parallel
+- [sanitizer-standard-matrix.yml](../examples/github-actions/sanitizer-standard-matrix.yml): run a single-file C++ target across C++ standards and sanitizer sets
 - [fuzz-crash-artifacts.yml](../examples/github-actions/fuzz-crash-artifacts.yml): upload libFuzzer crash artifacts and per-target summaries
 - [changed-line-coverage.yml](../examples/github-actions/changed-line-coverage.yml): gate pull requests on coverage for changed lines
 - [baseline-review.yml](../examples/github-actions/baseline-review.yml): compare against a diagnostic baseline and upload a candidate baseline

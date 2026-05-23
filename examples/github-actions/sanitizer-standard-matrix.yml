@@ -1,0 +1,75 @@
+name: CppGauntlet sanitizer and standard matrix
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  cppgauntlet:
+    name: CppGauntlet (${{ matrix.standard }}, ${{ matrix.sanitizer.name }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        standard: [c++17, c++20, c++23]
+        sanitizer:
+          - name: no-sanitizers
+            flags: none
+          - name: address
+            flags: address
+          - name: undefined
+            flags: undefined
+          - name: address-undefined
+            flags: address,undefined
+
+    env:
+      CPPGAUNTLET_TARGET: src/main.cpp
+      CPPGAUNTLET_STANDARD: ${{ matrix.standard }}
+      CPPGAUNTLET_SANITIZERS: ${{ matrix.sanitizer.flags }}
+      CPPGAUNTLET_REPORT: .cppgauntlet/${{ matrix.standard }}/${{ matrix.sanitizer.name }}/cppgauntlet-report.json
+      CPPGAUNTLET_MARKDOWN: .cppgauntlet/${{ matrix.standard }}/${{ matrix.sanitizer.name }}/cppgauntlet-report.md
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install C++ tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang
+
+      - name: Install CppGauntlet
+        run: cargo install --git https://github.com/nktkt/cppgauntlet
+
+      - name: Run CppGauntlet
+        id: cppgauntlet
+        continue-on-error: true
+        shell: bash
+        run: |
+          mkdir -p "$(dirname "$CPPGAUNTLET_REPORT")"
+
+          cppgauntlet check "$CPPGAUNTLET_TARGET" \
+            --standard "$CPPGAUNTLET_STANDARD" \
+            --sanitizers "$CPPGAUNTLET_SANITIZERS" \
+            --report "$CPPGAUNTLET_REPORT" \
+            --markdown-report "$CPPGAUNTLET_MARKDOWN"
+
+      - name: Upload CppGauntlet artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cppgauntlet-${{ matrix.standard }}-${{ matrix.sanitizer.name }}
+          path: |
+            ${{ env.CPPGAUNTLET_REPORT }}
+            ${{ env.CPPGAUNTLET_MARKDOWN }}
+          if-no-files-found: warn
+
+      - name: Fail on CppGauntlet gate
+        if: steps.cppgauntlet.outcome == 'failure'
+        run: exit 1
