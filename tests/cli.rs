@@ -1333,6 +1333,95 @@ fn baseline_update_supports_json_and_markdown_output() {
 }
 
 #[test]
+fn baseline_update_reports_previous_baseline_changes() {
+    if !clang_available() {
+        return;
+    }
+
+    let temp = tempdir().unwrap();
+    copy_fixture(temp.path(), "warning.cpp");
+    copy_fixture(temp.path(), "hello.cpp");
+
+    let mut previous_check = Command::cargo_bin("cppgauntlet").unwrap();
+    previous_check
+        .current_dir(temp.path())
+        .args([
+            "check",
+            "warning.cpp",
+            "--sanitizers",
+            "none",
+            "--report",
+            "previous-report.json",
+        ])
+        .assert()
+        .success();
+
+    let mut previous_update = Command::cargo_bin("cppgauntlet").unwrap();
+    previous_update
+        .current_dir(temp.path())
+        .args([
+            "baseline",
+            "update",
+            "--report",
+            "previous-report.json",
+            "--output",
+            "previous-baseline.json",
+        ])
+        .assert()
+        .success();
+
+    let mut current_check = Command::cargo_bin("cppgauntlet").unwrap();
+    current_check
+        .current_dir(temp.path())
+        .args([
+            "check",
+            "hello.cpp",
+            "--sanitizers",
+            "none",
+            "--report",
+            "current-report.json",
+        ])
+        .assert()
+        .success();
+
+    let mut update = Command::cargo_bin("cppgauntlet").unwrap();
+    let assert = update
+        .current_dir(temp.path())
+        .args([
+            "--format",
+            "json",
+            "baseline",
+            "update",
+            "--report",
+            "current-report.json",
+            "--previous",
+            "previous-baseline.json",
+            "--output",
+            "updated-baseline.json",
+        ])
+        .assert()
+        .success();
+    let stdout = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
+    let value: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+
+    assert_eq!(value["previous_baseline"], "previous-baseline.json");
+    assert_eq!(value["previous_unique_diagnostics"], 1);
+    assert_eq!(value["unique_diagnostics"], 0);
+    assert_eq!(value["new_unique_diagnostics"], 0);
+    assert_eq!(value["resolved_unique_diagnostics"], 1);
+    assert_eq!(value["unchanged_unique_diagnostics"], 0);
+
+    let updated = read_report_at(temp.path().join("updated-baseline.json"));
+    assert_eq!(
+        stage(&updated, "compile")["diagnostics"]
+            .as_array()
+            .unwrap()
+            .len(),
+        0
+    );
+}
+
+#[test]
 fn baseline_update_rejects_invalid_report() {
     let temp = tempdir().unwrap();
     fs::write(temp.path().join("broken.json"), "not json").unwrap();

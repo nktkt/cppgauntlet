@@ -59,6 +59,10 @@ pub struct BaselineUpdateArgs {
     #[arg(long, default_value = ".cppgauntlet/cppgauntlet-report.json")]
     pub report: PathBuf,
 
+    /// Previous baseline JSON report to compare before writing the updated baseline.
+    #[arg(long)]
+    pub previous: Option<PathBuf>,
+
     /// Baseline JSON report path to write.
     #[arg(long, default_value = ".cppgauntlet/baseline.json")]
     pub output: PathBuf,

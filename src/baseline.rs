@@ -30,12 +30,7 @@ impl Baseline {
 
         Ok(Self {
             path: path.to_path_buf(),
-            fingerprints: report
-                .stages
-                .iter()
-                .flat_map(|stage| stage.diagnostics.iter())
-                .map(fingerprint)
-                .collect(),
+            fingerprints: diagnostic_fingerprints(&report),
         })
     }
 
@@ -81,11 +76,21 @@ pub struct BaselineUpdateReport {
     pub diagnostics: usize,
     pub unique_diagnostics: usize,
     pub stages: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub previous_baseline: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub previous_unique_diagnostics: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub new_unique_diagnostics: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolved_unique_diagnostics: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unchanged_unique_diagnostics: Option<usize>,
 }
 
 impl BaselineUpdateReport {
     pub fn render_text(&self) -> String {
-        [
+        let mut lines = vec![
             "CppGauntlet Baseline".to_string(),
             "Status: UPDATED".to_string(),
             format!("Source report: {}", self.source_report.display()),
@@ -93,12 +98,13 @@ impl BaselineUpdateReport {
             format!("Diagnostics: {}", self.diagnostics),
             format!("Unique diagnostics: {}", self.unique_diagnostics),
             format!("Stages: {}", self.stages),
-        ]
-        .join("\n")
+        ];
+        self.push_text_change_summary(&mut lines);
+        lines.join("\n")
     }
 
     pub fn render_markdown(&self) -> String {
-        [
+        let mut rows = vec![
             "# CppGauntlet Baseline".to_string(),
             String::new(),
             "| Field | Value |".to_string(),
@@ -115,11 +121,14 @@ impl BaselineUpdateReport {
             format!("| Diagnostics | {} |", self.diagnostics),
             format!("| Unique diagnostics | {} |", self.unique_diagnostics),
             format!("| Stages | {} |", self.stages),
-        ]
-        .join("\n")
+        ];
+        self.push_markdown_change_summary(&mut rows);
+        rows.join("\n")
     }
 
     pub fn render_html(&self) -> String {
+        let change_summary = self.render_html_change_summary();
+
         format!(
             r#"<!doctype html>
 <html lang="en">
@@ -145,6 +154,7 @@ code {{ background: #eef1f5; padding: 0.1rem 0.25rem; }}
 <tr><th>Diagnostics</th><td>{}</td></tr>
 <tr><th>Unique diagnostics</th><td>{}</td></tr>
 <tr><th>Stages</th><td>{}</td></tr>
+{}
 </tbody>
 </table>
 </main>
@@ -154,8 +164,84 @@ code {{ background: #eef1f5; padding: 0.1rem 0.25rem; }}
             html_escape(&self.output.display().to_string()),
             self.diagnostics,
             self.unique_diagnostics,
-            self.stages
+            self.stages,
+            change_summary
         )
+    }
+
+    fn push_text_change_summary(&self, lines: &mut Vec<String>) {
+        if let Some(previous_baseline) = &self.previous_baseline {
+            lines.push(format!(
+                "Previous baseline: {}",
+                previous_baseline.display()
+            ));
+        }
+        if let Some(value) = self.previous_unique_diagnostics {
+            lines.push(format!("Previous unique diagnostics: {value}"));
+        }
+        if let Some(value) = self.new_unique_diagnostics {
+            lines.push(format!("New unique diagnostics: {value}"));
+        }
+        if let Some(value) = self.resolved_unique_diagnostics {
+            lines.push(format!("Resolved unique diagnostics: {value}"));
+        }
+        if let Some(value) = self.unchanged_unique_diagnostics {
+            lines.push(format!("Unchanged unique diagnostics: {value}"));
+        }
+    }
+
+    fn push_markdown_change_summary(&self, rows: &mut Vec<String>) {
+        if let Some(previous_baseline) = &self.previous_baseline {
+            rows.push(format!(
+                "| Previous baseline | `{}` |",
+                markdown_cell(&previous_baseline.display().to_string())
+            ));
+        }
+        if let Some(value) = self.previous_unique_diagnostics {
+            rows.push(format!("| Previous unique diagnostics | {value} |"));
+        }
+        if let Some(value) = self.new_unique_diagnostics {
+            rows.push(format!("| New unique diagnostics | {value} |"));
+        }
+        if let Some(value) = self.resolved_unique_diagnostics {
+            rows.push(format!("| Resolved unique diagnostics | {value} |"));
+        }
+        if let Some(value) = self.unchanged_unique_diagnostics {
+            rows.push(format!("| Unchanged unique diagnostics | {value} |"));
+        }
+    }
+
+    fn render_html_change_summary(&self) -> String {
+        let mut rows = Vec::new();
+
+        if let Some(previous_baseline) = &self.previous_baseline {
+            rows.push(format!(
+                "<tr><th>Previous baseline</th><td><code>{}</code></td></tr>",
+                html_escape(&previous_baseline.display().to_string())
+            ));
+        }
+        if let Some(value) = self.previous_unique_diagnostics {
+            rows.push(format!(
+                "<tr><th>Previous unique diagnostics</th><td>{value}</td></tr>"
+            ));
+        }
+        if let Some(value) = self.new_unique_diagnostics {
+            rows.push(format!(
+                "<tr><th>New unique diagnostics</th><td>{value}</td></tr>"
+            ));
+        }
+        if let Some(value) = self.resolved_unique_diagnostics {
+            rows.push(format!(
+                "<tr><th>Resolved unique diagnostics</th><td>{value}</td></tr>"
+            ));
+        }
+        if let Some(value) = self.unchanged_unique_diagnostics {
+            rows.push(format!(
+                "<tr><th>Unchanged unique diagnostics</th><td>{value}</td></tr>"
+            ));
+        }
+
+        rows.join("\n")
     }
 }
 
@@ -172,11 +258,33 @@ fn update(args: BaselineUpdateArgs) -> Result<BaselineUpdateReport, AppError> {
         .iter()
         .map(|stage| stage.diagnostics.len())
         .sum();
-    let unique_diagnostics = unique_diagnostic_count(&report);
+    let current_fingerprints = diagnostic_fingerprints(&report);
+    let unique_diagnostics = current_fingerprints.len();
     let stages = report.stages.len();
+    let change_summary = args
+        .previous
+        .as_deref()
+        .map(|path| baseline_change_summary(path, &current_fingerprints))
+        .transpose()?;
 
     normalize_report_for_baseline(&mut report, &args.output);
     write_baseline(&args.output, &report)?;
+
+    let (
+        previous_baseline,
+        previous_unique_diagnostics,
+        new_unique_diagnostics,
+        resolved_unique_diagnostics,
+        unchanged_unique_diagnostics,
+    ) = change_summary.map_or((None, None, None, None, None), |summary| {
+        (
+            Some(summary.previous_baseline),
+            Some(summary.previous_unique_diagnostics),
+            Some(summary.new_unique_diagnostics),
+            Some(summary.resolved_unique_diagnostics),
+            Some(summary.unchanged_unique_diagnostics),
+        )
+    });
 
     Ok(BaselineUpdateReport {
         schema_version: 1,
@@ -185,6 +293,45 @@ fn update(args: BaselineUpdateArgs) -> Result<BaselineUpdateReport, AppError> {
         diagnostics,
         unique_diagnostics,
         stages,
+        previous_baseline,
+        previous_unique_diagnostics,
+        new_unique_diagnostics,
+        resolved_unique_diagnostics,
+        unchanged_unique_diagnostics,
+    })
+}
+
+#[derive(Debug)]
+struct BaselineChangeSummary {
+    previous_baseline: PathBuf,
+    previous_unique_diagnostics: usize,
+    new_unique_diagnostics: usize,
+    resolved_unique_diagnostics: usize,
+    unchanged_unique_diagnostics: usize,
+}
+
+fn baseline_change_summary(
+    previous_path: &Path,
+    current_fingerprints: &HashSet<String>,
+) -> Result<BaselineChangeSummary, AppError> {
+    let previous = Baseline::load(previous_path)?;
+    let new_unique_diagnostics = current_fingerprints
+        .difference(&previous.fingerprints)
+        .count();
+    let resolved_unique_diagnostics = previous
+        .fingerprints
+        .difference(current_fingerprints)
+        .count();
+    let unchanged_unique_diagnostics = current_fingerprints
+        .intersection(&previous.fingerprints)
+        .count();
+
+    Ok(BaselineChangeSummary {
+        previous_baseline: previous.path,
+        previous_unique_diagnostics: previous.fingerprints.len(),
+        new_unique_diagnostics,
+        resolved_unique_diagnostics,
+        unchanged_unique_diagnostics,
     })
 }
 
@@ -233,14 +380,13 @@ fn write_baseline(path: &Path, report: &Report) -> Result<(), AppError> {
     })
 }
 
-fn unique_diagnostic_count(report: &Report) -> usize {
+fn diagnostic_fingerprints(report: &Report) -> HashSet<String> {
     report
         .stages
         .iter()
         .flat_map(|stage| stage.diagnostics.iter())
         .map(fingerprint)
         .collect::<HashSet<_>>()
-        .len()
 }
 
 fn fingerprint(diagnostic: &Diagnostic) -> String {

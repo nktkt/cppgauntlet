@@ -16,6 +16,12 @@ Export that report as a reusable baseline:
 cppgauntlet baseline update --report .cppgauntlet/cppgauntlet-report.json --output .cppgauntlet/baseline.json
 ```
 
+Compare an updated report against the previous baseline while writing the new baseline:
+
+```bash
+cppgauntlet baseline update --report current.json --previous .cppgauntlet/baseline.json --output .cppgauntlet/baseline.json
+```
+
 Compare a future run against that baseline:
 
 ```bash
@@ -43,6 +49,7 @@ CLI arguments take precedence over configuration values.
 ## Updating Baselines
 
 `baseline update` reads a CppGauntlet JSON report, validates it, removes transient baseline comparison fields, and writes a normalized JSON report that can be used with `--baseline`.
+The output baseline always contains only diagnostics from the current report, so diagnostics that disappeared from the current run are pruned from the written baseline.
 
 Default paths:
 
@@ -58,6 +65,14 @@ The command also supports machine-readable output:
 cppgauntlet --format json baseline update --report current.json --output baseline.json
 cppgauntlet --format markdown baseline update --report current.json --output baseline.json
 ```
+
+Pass `--previous` to include a changed-diagnostic summary in the command output:
+
+```bash
+cppgauntlet --format json baseline update --report current.json --previous baseline.json --output baseline.json
+```
+
+The summary includes previous, new, resolved, and unchanged unique diagnostic counts. This is useful for CI jobs that upload the update result as an artifact before committing or reviewing a baseline change.
 
 ## Report Output
 
