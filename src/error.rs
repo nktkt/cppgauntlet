@@ -53,9 +53,6 @@ pub enum AppError {
     #[error("failed to parse changed-lines diff {path}: {reason}")]
     ParseChangedLinesDiff { path: PathBuf, reason: String },
 
-    #[error("--fuzz is only supported when checking a single C++ source file")]
-    FuzzRequiresSourceFile,
-
     #[error("--coverage is not supported with --fuzz yet")]
     FuzzCoverageUnsupported,
 

@@ -15,6 +15,7 @@ use crate::report::{
 use crate::runner::{run_command, CommandSpec};
 
 const DEFAULT_FUZZ_SECONDS: u64 = 5;
+const FUZZ_ENTRYPOINT: &str = "LLVMFuzzerTestOneInput";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Sanitizer {
@@ -52,9 +53,7 @@ pub fn run(args: CheckArgs) -> Result<Report, AppError> {
         CheckTarget::CompilationDatabase(_) if args.ctest => {
             Err(AppError::CtestRequiresCMakeProject)
         }
-        CheckTarget::CompilationDatabase(_) if args.fuzz => Err(AppError::FuzzRequiresSourceFile),
         CheckTarget::CompilationDatabase(database) => run_compilation_database(args, database),
-        CheckTarget::CMakeProject(_) if args.fuzz => Err(AppError::FuzzRequiresSourceFile),
         CheckTarget::CMakeProject(project_dir) => run_cmake_project(args, project_dir),
     }
 }
@@ -259,6 +258,76 @@ fn run_source_file_fuzz(
     Ok(report)
 }
 
+fn run_project_fuzz(
+    args: ResolvedCheckArgs,
+    database: CompilationDatabase,
+    mut stages: Vec<StageReport>,
+    report_paths: ReportPaths,
+    target_path: Option<PathBuf>,
+    standard: String,
+    compiler: String,
+) -> Result<Report, AppError> {
+    let timeout = Duration::from_secs(args.timeout_seconds.max(args.fuzz_seconds + 5));
+    let artifact_root = args.artifact_dir.clone();
+    let fuzz_dir = artifact_root.join("fuzz");
+    let build_dir = fuzz_dir.join("build");
+    let fuzz_artifact_dir = fuzz_dir.join("artifacts");
+    create_dir(&build_dir)?;
+    create_dir(&fuzz_artifact_dir)?;
+    let build_dir = build_dir.canonicalize().unwrap_or(build_dir);
+    let fuzz_artifact_dir = fuzz_artifact_dir
+        .canonicalize()
+        .unwrap_or(fuzz_artifact_dir);
+
+    let mut targets = discover_fuzz_targets(&database);
+    stages.push(fuzz_discover_stage(&database, &targets));
+    assign_fuzz_target_ids(&mut targets);
+
+    append_clang_tidy_fuzz_target_stages(&mut stages, &targets, &args, &database, timeout);
+    append_project_fuzz_stages(
+        &mut stages,
+        &args,
+        &targets,
+        &build_dir,
+        &fuzz_dir,
+        &fuzz_artifact_dir,
+        timeout,
+    )?;
+    append_test_command_stage(&mut stages, &args, database.path.parent(), timeout);
+    let baseline = apply_baseline(&mut stages, &args);
+    append_policy_stage(&mut stages, &args, None, baseline.as_ref());
+
+    let summary = summarize(&stages, None, baseline);
+    let status = if summary.failed_stages == 0 {
+        ReportStatus::Passed
+    } else {
+        ReportStatus::Failed
+    };
+
+    let report = Report {
+        schema_version: REPORT_SCHEMA_VERSION,
+        tool: ToolInfo {
+            name: "CppGauntlet".to_string(),
+            version: env!("CARGO_PKG_VERSION").to_string(),
+        },
+        target: TargetInfo {
+            path: target_path.unwrap_or(database.path),
+            standard,
+            compiler,
+        },
+        status,
+        summary,
+        stages,
+        report_path: report_paths.json,
+        markdown_report_path: report_paths.markdown,
+        html_report_path: report_paths.html,
+        sarif_report_path: report_paths.sarif,
+    };
+
+    write_report_outputs(&report)?;
+    Ok(report)
+}
+
 fn run_compilation_database(
     args: ResolvedCheckArgs,
     database: CompilationDatabase,
@@ -276,6 +345,18 @@ fn run_compilation_database_with_stages(
 
     let report_paths = resolve_report_paths(&args, &artifact_root);
     let timeout = Duration::from_secs(args.timeout_seconds);
+    if args.fuzz {
+        return run_project_fuzz(
+            args,
+            database,
+            stages,
+            report_paths,
+            None,
+            "from compilation database".to_string(),
+            "from compilation database".to_string(),
+        );
+    }
+
     append_compilation_database_compile_stages(&mut stages, &database, timeout)?;
     append_clang_tidy_stages(&mut stages, &database, &args, timeout);
     if !args.coverage {
@@ -336,6 +417,18 @@ fn run_cmake_project(args: ResolvedCheckArgs, project_dir: PathBuf) -> Result<Re
     let database = compdb::load_for_target(&build_dir)?;
     let mut stages = vec![cmake_stage];
     let timeout = Duration::from_secs(args.timeout_seconds);
+    if args.fuzz {
+        return run_project_fuzz(
+            args,
+            database,
+            stages,
+            report_paths,
+            Some(project_dir),
+            "from CMake".to_string(),
+            "from CMake".to_string(),
+        );
+    }
+
     append_compilation_database_compile_stages(&mut stages, &database, timeout)?;
     append_clang_tidy_stages(&mut stages, &database, &args, timeout);
 
@@ -698,12 +791,14 @@ fn append_fuzz_stages(
     stages.push(fuzz_compile);
 
     if fuzz_compile_ok {
-        let corpus = selected_fuzz_corpus(fuzz_dir, &args.fuzz_corpus);
+        let default_corpus = fuzz_dir.join("corpus");
+        let corpus = selected_fuzz_corpus(&default_corpus, &args.fuzz_corpus);
         for path in &corpus {
             create_dir(path)?;
         }
 
         stages.push(fuzz_run_stage(
+            "fuzz_run",
             &executable,
             fuzz_artifact_dir,
             &corpus,
@@ -717,7 +812,133 @@ fn append_fuzz_stages(
     Ok(())
 }
 
+fn append_project_fuzz_stages(
+    stages: &mut Vec<StageReport>,
+    args: &ResolvedCheckArgs,
+    targets: &[FuzzTarget],
+    build_dir: &Path,
+    fuzz_dir: &Path,
+    fuzz_artifact_dir: &Path,
+    timeout: Duration,
+) -> Result<(), AppError> {
+    if stages
+        .iter()
+        .any(|stage| stage.status == StageStatus::Failed)
+    {
+        stages.extend(targets.iter().flat_map(|target| {
+            [
+                StageReport::skipped(fuzz_stage_name("fuzz_compile", &target.source)),
+                StageReport::skipped(fuzz_stage_name("fuzz_run", &target.source)),
+            ]
+        }));
+        return Ok(());
+    }
+
+    let sanitizers = parse_sanitizers(&args.sanitizers)?;
+    let fuzz_flags = fuzz_flags(&sanitizers);
+
+    for target in targets {
+        let executable = build_dir.join(project_fuzz_executable_name(target));
+        let fuzz_compile = project_fuzz_compile_stage(target, &executable, &fuzz_flags, timeout)?;
+        let fuzz_compile_ok = fuzz_compile.status == StageStatus::Passed;
+        stages.push(fuzz_compile);
+
+        if fuzz_compile_ok {
+            let default_corpus = fuzz_dir.join("corpus").join(&target.artifact_id);
+            let corpus = selected_fuzz_corpus(&default_corpus, &args.fuzz_corpus);
+            for path in &corpus {
+                create_dir(path)?;
+            }
+
+            let artifact_dir = fuzz_artifact_dir.join(&target.artifact_id);
+            create_dir(&artifact_dir)?;
+            stages.push(fuzz_run_stage(
+                fuzz_stage_name("fuzz_run", &target.source),
+                &executable,
+                &artifact_dir,
+                &corpus,
+                args.fuzz_seconds,
+                timeout,
+            ));
+        } else {
+            stages.push(StageReport::skipped(fuzz_stage_name(
+                "fuzz_run",
+                &target.source,
+            )));
+        }
+    }
+
+    Ok(())
+}
+
+fn append_clang_tidy_fuzz_target_stages(
+    stages: &mut Vec<StageReport>,
+    targets: &[FuzzTarget],
+    args: &ResolvedCheckArgs,
+    database: &CompilationDatabase,
+    timeout: Duration,
+) {
+    if !args.clang_tidy {
+        return;
+    }
+
+    let database_dir = database.path.parent().unwrap_or_else(|| Path::new("."));
+    if stages
+        .iter()
+        .any(|stage| stage.status == StageStatus::Failed)
+    {
+        stages.extend(
+            targets.iter().map(|target| {
+                StageReport::skipped(format!("clang_tidy:{}", target.source.display()))
+            }),
+        );
+        return;
+    }
+
+    stages.extend(targets.iter().map(|target| {
+        clang_tidy_compilation_database_stage(
+            &target.unit,
+            &args.clang_tidy_bin,
+            args.clang_tidy_checks.as_deref(),
+            database_dir,
+            timeout,
+        )
+    }));
+}
+
+fn project_fuzz_compile_stage(
+    target: &FuzzTarget,
+    output: &Path,
+    fuzz_flags: &[String],
+    timeout: Duration,
+) -> Result<StageReport, AppError> {
+    let Some((program, args)) = target.unit.arguments.split_first() else {
+        return Err(AppError::InvalidCompilationCommand(
+            target.unit.file.clone(),
+        ));
+    };
+
+    let result = run_command(
+        CommandSpec::new(program)
+            .args(fuzz_compilation_args(
+                args,
+                &target.source,
+                output,
+                fuzz_flags,
+            ))
+            .current_dir(target.unit.directory.clone()),
+        timeout,
+    )?;
+
+    Ok(stage_from_result(
+        fuzz_stage_name("fuzz_compile", &target.source),
+        result,
+        Some(output),
+    ))
+}
+
 fn fuzz_run_stage(
+    name: impl Into<String>,
     executable: &Path,
     fuzz_artifact_dir: &Path,
     corpus: &[PathBuf],
@@ -733,12 +954,12 @@ fn fuzz_run_stage(
     let spec = CommandSpec::new(executable.display().to_string()).args(args);
     let command_line = spec.command_line();
     let result = run_command(spec, timeout);
-    stage_from_command_result("fuzz_run", command_line, result, Some(fuzz_artifact_dir))
+    stage_from_command_result(name, command_line, result, Some(fuzz_artifact_dir))
 }
 
-fn selected_fuzz_corpus(fuzz_dir: &Path, corpus: &[PathBuf]) -> Vec<PathBuf> {
+fn selected_fuzz_corpus(default_corpus: &Path, corpus: &[PathBuf]) -> Vec<PathBuf> {
     if corpus.is_empty() {
-        vec![fuzz_dir.join("corpus")]
+        vec![default_corpus.to_path_buf()]
     } else {
         corpus.to_vec()
     }
@@ -1102,6 +1323,77 @@ impl CheckTarget {
     }
 }
 
+fn discover_fuzz_targets(database: &CompilationDatabase) -> Vec<FuzzTarget> {
+    let mut seen = HashSet::new();
+    let mut targets = Vec::new();
+
+    for unit in &database.entries {
+        let source = source_path(unit);
+        if !seen.insert(source.clone()) {
+            continue;
+        }
+
+        let Ok(contents) = fs::read_to_string(&source) else {
+            continue;
+        };
+        if contents.contains(FUZZ_ENTRYPOINT) {
+            targets.push(FuzzTarget {
+                unit: unit.clone(),
+                source,
+                artifact_id: String::new(),
+            });
+        }
+    }
+
+    targets.sort_by(|left, right| left.source.cmp(&right.source));
+    targets
+}
+
+fn assign_fuzz_target_ids(targets: &mut [FuzzTarget]) {
+    for (index, target) in targets.iter_mut().enumerate() {
+        let path_id = sanitize_path_id(&target.source);
+        target.artifact_id = format!("{index:03}-{path_id}");
+    }
+}
+
+fn fuzz_discover_stage(database: &CompilationDatabase, targets: &[FuzzTarget]) -> StageReport {
+    let command = vec![
+        "cppgauntlet".to_string(),
+        "discover-fuzz-targets".to_string(),
+        database.path.display().to_string(),
+    ];
+
+    if targets.is_empty() {
+        return failed_stage(
+            "fuzz_discover",
+            command,
+            &format!(
+                "no fuzz targets containing {FUZZ_ENTRYPOINT} were found in {}",
+                database.path.display()
+            ),
+            Some(&database.path),
+        );
+    }
+
+    StageReport {
+        name: "fuzz_discover".to_string(),
+        status: StageStatus::Passed,
+        command,
+        exit_code: Some(0),
+        timed_out: false,
+        warnings: 0,
+        errors: 0,
+        diagnostics: Vec::new(),
+        stdout: targets
+            .iter()
+            .map(|target| target.source.display().to_string())
+            .collect::<Vec<_>>()
+            .join("\n"),
+        stderr: String::new(),
+        artifact: Some(database.path.clone()),
+    }
+}
+
 #[derive(Debug)]
 struct ResolvedCheckArgs {
     file: PathBuf,
@@ -1140,6 +1432,13 @@ struct ResolvedCheckArgs {
 struct ChangedLine {
     path: PathBuf,
     line: u64,
+}
+
+#[derive(Clone, Debug)]
+struct FuzzTarget {
+    unit: CompilationUnit,
+    source: PathBuf,
+    artifact_id: String,
 }
 
 impl ResolvedCheckArgs {
@@ -1407,6 +1706,55 @@ fn coverage_compilation_args(args: &[String], output: &Path) -> Vec<String> {
     }
 
     rewritten
+}
+
+fn fuzz_compilation_args(
+    args: &[String],
+    source: &Path,
+    output: &Path,
+    fuzz_flags: &[String],
+) -> Vec<String> {
+    let mut rewritten = Vec::new();
+    let mut saw_source = false;
+    let mut iter = args.iter();
+
+    while let Some(arg) = iter.next() {
+        if arg == "-fsyntax-only" || arg == "-c" || arg == "-S" {
+            continue;
+        }
+
+        if arg == "-o" {
+            let _ = iter.next();
+            continue;
+        }
+
+        if arg.starts_with("-o") && arg.len() > 2 {
+            continue;
+        }
+
+        if source_arg_matches(arg, source) {
+            saw_source = true;
+        }
+        rewritten.push(arg.clone());
+    }
+
+    if !saw_source {
+        rewritten.push(source.display().to_string());
+    }
+
+    rewritten.extend(fuzz_flags.iter().cloned());
+    rewritten.push("-o".to_string());
+    rewritten.push(output.display().to_string());
+    rewritten
+}
+
+fn source_arg_matches(arg: &str, source: &Path) -> bool {
+    if arg.starts_with('-') {
+        return false;
+    }
+
+    let path = Path::new(arg);
+    path == source || source.ends_with(path)
 }
 
 fn clang_tidy_source_stage(
@@ -2354,6 +2702,14 @@ fn fuzz_executable_name(source: &Path) -> String {
     )
 }
 
+fn project_fuzz_executable_name(target: &FuzzTarget) -> String {
+    format!("{}{}", target.artifact_id, std::env::consts::EXE_SUFFIX)
+}
+
+fn fuzz_stage_name(kind: &str, source: &Path) -> String {
+    format!("{kind}:{}", source.display())
+}
+
 fn artifact_stem(source: &Path) -> String {
     source
         .file_stem()
@@ -2361,6 +2717,16 @@ fn artifact_stem(source: &Path) -> String {
         .map(sanitize_filename)
         .filter(|stem| !stem.is_empty())
         .unwrap_or_else(|| "cppgauntlet-target".to_string())
+}
+
+fn sanitize_path_id(path: &Path) -> String {
+    let value = sanitize_filename(&path.display().to_string());
+    let trimmed = value.trim_matches('_');
+    if trimmed.is_empty() {
+        "cppgauntlet-target".to_string()
+    } else {
+        trimmed.to_string()
+    }
 }
 
 fn sanitize_filename(value: &str) -> String {

@@ -209,6 +209,24 @@ fn release_packaging_metadata_is_documented() {
 }
 
 #[test]
+fn project_fuzz_discovery_is_documented() {
+    let fuzzing = fs::read_to_string("docs/FUZZING.md").unwrap();
+    assert!(fuzzing.contains("compile_commands.json"));
+    assert!(fuzzing.contains("LLVMFuzzerTestOneInput"));
+    assert!(fuzzing.contains("fuzz_discover"));
+    assert!(fuzzing.contains("fuzz_compile:src/parser_fuzz.cpp"));
+
+    let schema = fs::read_to_string("docs/REPORT_SCHEMA.md").unwrap();
+    assert!(schema.contains("fuzz_discover"));
+    assert!(schema.contains("fuzz_compile:<source path>"));
+    assert!(schema.contains("fuzz_run:<source path>"));
+
+    let readme = fs::read_to_string("README.md").unwrap();
+    assert!(readme.contains("cargo run -- check ./project --fuzz --fuzz-seconds 5"));
+    assert!(readme.contains("project-discovered libFuzzer smoke workflows"));
+}
+
+#[test]
 #[cfg(unix)]
 fn doctor_reports_custom_required_tool_available() {
     let temp = tempdir().unwrap();
@@ -1273,6 +1291,155 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t *data, std::size_t size
         .unwrap()
         .iter()
         .any(|arg| arg.as_str().unwrap().ends_with("seed-corpus")));
+}
+
+#[test]
+#[cfg(unix)]
+fn check_compile_commands_discovers_and_runs_project_fuzz_targets() {
+    let temp = tempdir().unwrap();
+    write_project_source(
+        temp.path(),
+        "fuzz/one_fuzz.cpp",
+        r#"#include <cstddef>
+#include <cstdint>
+
+extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t *data, std::size_t size) {
+    return size > 0 && data[0] == 0xff ? 0 : 0;
+}
+"#,
+    );
+    write_project_source(
+        temp.path(),
+        "src/library.cpp",
+        "int library() { return 1; }\n",
+    );
+    let compiler = make_fake_compiler(temp.path(), "project-fuzz-clang++");
+    write_compile_commands(
+        temp.path(),
+        &[
+            serde_json::json!({
+                "directory": temp.path(),
+                "file": "fuzz/one_fuzz.cpp",
+                "arguments": [
+                    compiler.to_str().unwrap(),
+                    "-std=c++20",
+                    "-Iinclude",
+                    "-c",
+                    "fuzz/one_fuzz.cpp",
+                    "-o",
+                    "one_fuzz.o"
+                ]
+            }),
+            serde_json::json!({
+                "directory": temp.path(),
+                "file": "src/library.cpp",
+                "arguments": [
+                    compiler.to_str().unwrap(),
+                    "-std=c++20",
+                    "-c",
+                    "src/library.cpp",
+                    "-o",
+                    "library.o"
+                ]
+            }),
+        ],
+    );
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args([
+            "check",
+            ".",
+            "--fuzz",
+            "--sanitizers",
+            "none",
+            "--fuzz-seconds",
+            "1",
+            "--fuzz-corpus",
+            "seed-corpus",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("fuzz_discover"))
+        .stdout(predicate::str::contains("fuzz_compile:"))
+        .stdout(predicate::str::contains("fuzz_run:"));
+
+    let value = read_report(temp.path());
+    assert_eq!(value["status"], "passed");
+    assert_eq!(stage(&value, "fuzz_discover")["status"], "passed");
+    assert!(stage(&value, "fuzz_discover")["stdout"]
+        .as_str()
+        .unwrap()
+        .contains("one_fuzz.cpp"));
+    assert!(!stage(&value, "fuzz_discover")["stdout"]
+        .as_str()
+        .unwrap()
+        .contains("library.cpp"));
+    assert!(!stage_name_exists(&value, "compile:"));
+
+    let fuzz_compile = stage_with_prefix(&value, "fuzz_compile:");
+    assert_eq!(fuzz_compile["status"], "passed");
+    let command = fuzz_compile["command"].as_array().unwrap();
+    assert!(command.iter().any(|arg| arg == "-Iinclude"));
+    assert!(command.iter().any(|arg| arg == "-fsanitize=fuzzer"));
+    assert!(!command.iter().any(|arg| arg == "-c"));
+
+    let fuzz_run = stage_with_prefix(&value, "fuzz_run:");
+    assert_eq!(fuzz_run["status"], "passed");
+    assert!(fuzz_run["command"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|arg| arg == "-max_total_time=1"));
+    assert!(fuzz_run["command"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|arg| arg.as_str().unwrap().ends_with("seed-corpus")));
+}
+
+#[test]
+#[cfg(unix)]
+fn check_compile_commands_fuzz_fails_when_no_targets_are_discovered() {
+    let temp = tempdir().unwrap();
+    write_project_source(
+        temp.path(),
+        "src/library.cpp",
+        "int library() { return 1; }\n",
+    );
+    let compiler = make_fake_compiler(temp.path(), "no-project-fuzz-clang++");
+    write_compile_commands(
+        temp.path(),
+        &[serde_json::json!({
+            "directory": temp.path(),
+            "file": "src/library.cpp",
+            "arguments": [
+                compiler.to_str().unwrap(),
+                "-std=c++20",
+                "-c",
+                "src/library.cpp",
+                "-o",
+                "library.o"
+            ]
+        })],
+    );
+
+    let mut cmd = Command::cargo_bin("cppgauntlet").unwrap();
+    cmd.current_dir(temp.path())
+        .args(["check", ".", "--fuzz", "--sanitizers", "none"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("Status: FAILED"))
+        .stdout(predicate::str::contains("fuzz_discover"));
+
+    let value = read_report(temp.path());
+    assert_eq!(value["status"], "failed");
+    assert_eq!(stage(&value, "fuzz_discover")["status"], "failed");
+    assert!(stage(&value, "fuzz_discover")["stderr"]
+        .as_str()
+        .unwrap()
+        .contains("no fuzz targets"));
+    assert!(!stage_name_exists(&value, "fuzz_compile:"));
 }
 
 #[test]

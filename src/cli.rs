@@ -161,7 +161,7 @@ pub struct CheckArgs {
     #[arg(long = "changed-lines-diff")]
     pub changed_lines_diff: Option<PathBuf>,
 
-    /// Build and run the source file as a libFuzzer smoke target.
+    /// Build and run libFuzzer smoke targets.
     #[arg(long)]
     pub fuzz: bool,
 

@@ -108,15 +108,18 @@ Current stage names:
 - `coverage_merge`
 - `coverage_report`
 - `ctest`
+- `fuzz_discover`
 - `fuzz_compile`
+- `fuzz_compile:<source path>`
 - `fuzz_run`
+- `fuzz_run:<source path>`
 - `policy`
 - `run`
 - `sanitize_compile`
 - `sanitize_run`
 - `test_command`
 
-`compile:<source path>`, `clang_tidy:<source path>`, and `coverage_compile:<source path>` are used for project checks created from `compile_commands.json`.
+`compile:<source path>`, `clang_tidy:<source path>`, `coverage_compile:<source path>`, `fuzz_compile:<source path>`, and `fuzz_run:<source path>` are used for project checks created from `compile_commands.json`.
 
 ## Diagnostics
 
