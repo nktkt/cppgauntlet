@@ -197,14 +197,29 @@ fn github_actions_compile_database_and_cmake_coverage_examples_are_documented() 
     assert!(target_matrix.contains("matrix.artifact"));
     assert!(target_matrix.contains("steps.cppgauntlet.outcome == 'failure'"));
 
+    let fuzz_artifacts =
+        fs::read_to_string("examples/github-actions/fuzz-crash-artifacts.yml").unwrap();
+    assert!(fuzz_artifacts.contains("CPPGAUNTLET_FUZZ_SECONDS"));
+    assert!(fuzz_artifacts.contains("--fuzz"));
+    assert!(fuzz_artifacts.contains("--fuzz-seconds \"$CPPGAUNTLET_FUZZ_SECONDS\""));
+    assert!(fuzz_artifacts.contains("continue-on-error: true"));
+    assert!(fuzz_artifacts.contains("actions/upload-artifact@v4"));
+    assert!(fuzz_artifacts.contains("cppgauntlet-fuzz-artifacts"));
+    assert!(fuzz_artifacts.contains(".cppgauntlet/fuzz/artifacts/**"));
+    assert!(fuzz_artifacts.contains(".cppgauntlet/fuzz/summaries/**"));
+    assert!(fuzz_artifacts.contains("steps.cppgauntlet.outcome == 'failure'"));
+
     let docs = fs::read_to_string("docs/GITHUB_ACTIONS.md").unwrap();
     assert!(docs.contains("../examples/github-actions/compile-database.yml"));
     assert!(docs.contains("../examples/github-actions/cmake-coverage.yml"));
     assert!(docs.contains("../examples/github-actions/target-matrix.yml"));
+    assert!(docs.contains("../examples/github-actions/fuzz-crash-artifacts.yml"));
     assert!(docs.contains("CPPGAUNTLET_CONFIGURE_COMMAND"));
     assert!(docs.contains("CPPGAUNTLET_MIN_LINE_COVERAGE"));
     assert!(docs.contains("Target Matrix"));
     assert!(docs.contains("single-file smoke check"));
+    assert!(docs.contains("Fuzz Crash Artifacts"));
+    assert!(docs.contains(".cppgauntlet/fuzz/artifacts/**"));
 
     let compilation_database_docs = fs::read_to_string("docs/COMPILATION_DATABASE.md").unwrap();
     assert!(compilation_database_docs.contains("../examples/github-actions/compile-database.yml"));
@@ -215,9 +230,15 @@ fn github_actions_compile_database_and_cmake_coverage_examples_are_documented() 
     let coverage_docs = fs::read_to_string("docs/COVERAGE.md").unwrap();
     assert!(coverage_docs.contains("GITHUB_ACTIONS.md"));
 
+    let fuzzing_docs = fs::read_to_string("docs/FUZZING.md").unwrap();
+    assert!(fuzzing_docs.contains("../examples/github-actions/fuzz-crash-artifacts.yml"));
+    assert!(fuzzing_docs.contains("cppgauntlet-fuzz-artifacts"));
+    assert!(fuzzing_docs.contains(".cppgauntlet/fuzz/summaries/**"));
+
     let readme = fs::read_to_string("README.md").unwrap();
     assert!(readme.contains("[docs/GITHUB_ACTIONS.md](docs/GITHUB_ACTIONS.md)"));
     assert!(readme.contains("reusable GitHub Actions examples and matrix workflows"));
+    assert!(readme.contains("CI crash artifact uploads"));
 }
 
 #[test]

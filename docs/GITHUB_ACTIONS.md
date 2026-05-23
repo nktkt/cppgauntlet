@@ -64,9 +64,16 @@ Each matrix entry owns:
 
 For arguments that need shell quoting, prefer moving options into `cppgauntlet.yaml` and keep the matrix `args` value simple.
 
+## Fuzz Crash Artifacts
+
+Use [fuzz-crash-artifacts.yml](../examples/github-actions/fuzz-crash-artifacts.yml) when fuzz smoke checks should preserve crash files for later inspection.
+
+The workflow runs `cppgauntlet check --fuzz`, uploads `.cppgauntlet/fuzz/artifacts/**` and `.cppgauntlet/fuzz/summaries/**`, then fails the job after upload if the fuzz gate failed.
+
 ## Other Examples
 
 - [target-matrix.yml](../examples/github-actions/target-matrix.yml): run several CppGauntlet targets in parallel
+- [fuzz-crash-artifacts.yml](../examples/github-actions/fuzz-crash-artifacts.yml): upload libFuzzer crash artifacts and per-target summaries
 - [changed-line-coverage.yml](../examples/github-actions/changed-line-coverage.yml): gate pull requests on coverage for changed lines
 - [baseline-review.yml](../examples/github-actions/baseline-review.yml): compare against a diagnostic baseline and upload a candidate baseline
 - [code-scanning.yml](../examples/github-actions/code-scanning.yml): upload SARIF results to GitHub Code Scanning

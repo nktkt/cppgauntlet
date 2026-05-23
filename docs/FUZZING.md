@@ -60,6 +60,22 @@ Project fuzz summaries are written under `.cppgauntlet/fuzz/summaries/<target-id
 
 When no corpus is supplied, single-source checks use `.cppgauntlet/fuzz/corpus`. Project checks create a separate default corpus directory per discovered fuzz target under `.cppgauntlet/fuzz/corpus/`.
 
+## GitHub Actions
+
+Use [examples/github-actions/fuzz-crash-artifacts.yml](../examples/github-actions/fuzz-crash-artifacts.yml) to run fuzz smoke checks in CI and upload crash artifacts for review.
+
+The workflow:
+
+- optionally runs `CPPGAUNTLET_CONFIGURE_COMMAND` before fuzzing
+- runs `cppgauntlet check "$CPPGAUNTLET_TARGET" --fuzz`
+- keeps going after the fuzz step fails so artifacts can be uploaded
+- uploads JSON and Markdown reports
+- uploads `.cppgauntlet/fuzz/artifacts/**`
+- uploads `.cppgauntlet/fuzz/summaries/**`
+- fails the job after upload when CppGauntlet found a fuzz failure
+
+Download the `cppgauntlet-fuzz-artifacts` workflow artifact to inspect libFuzzer crash files and per-target summary JSON files.
+
 Coverage-guided fuzzing trend reports are planned future work.
 `--coverage` is not supported together with `--fuzz` yet.
 

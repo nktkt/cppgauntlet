@@ -1,0 +1,75 @@
+name: CppGauntlet fuzz crash artifacts
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  cppgauntlet-fuzz:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    env:
+      CPPGAUNTLET_TARGET: .
+      CPPGAUNTLET_CONFIGURE_COMMAND: cmake -S . -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      CPPGAUNTLET_FUZZ_SECONDS: "10"
+      CPPGAUNTLET_FUZZ_CORPUS: ""
+      CPPGAUNTLET_REPORT: .cppgauntlet/cppgauntlet-report.json
+      CPPGAUNTLET_MARKDOWN: .cppgauntlet/cppgauntlet-report.md
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install C++ fuzzing tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build
+
+      - name: Install CppGauntlet
+        run: cargo install --git https://github.com/nktkt/cppgauntlet
+
+      - name: Configure project
+        if: env.CPPGAUNTLET_CONFIGURE_COMMAND != ''
+        shell: bash
+        run: bash -lc "$CPPGAUNTLET_CONFIGURE_COMMAND"
+
+      - name: Run CppGauntlet fuzz smoke checks
+        id: cppgauntlet
+        continue-on-error: true
+        shell: bash
+        run: |
+          mkdir -p .cppgauntlet
+          args=(
+            check "$CPPGAUNTLET_TARGET"
+            --fuzz
+            --fuzz-seconds "$CPPGAUNTLET_FUZZ_SECONDS"
+            --report "$CPPGAUNTLET_REPORT"
+            --markdown-report "$CPPGAUNTLET_MARKDOWN"
+          )
+          if [ -n "$CPPGAUNTLET_FUZZ_CORPUS" ]; then
+            args+=(--fuzz-corpus "$CPPGAUNTLET_FUZZ_CORPUS")
+          fi
+          cppgauntlet "${args[@]}"
+
+      - name: Upload fuzz artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cppgauntlet-fuzz-artifacts
+          path: |
+            .cppgauntlet/cppgauntlet-report.json
+            .cppgauntlet/cppgauntlet-report.md
+            .cppgauntlet/fuzz/artifacts/**
+            .cppgauntlet/fuzz/summaries/**
+            .cppgauntlet/fuzz/corpus/**
+          if-no-files-found: warn
+
+      - name: Fail on CppGauntlet fuzz gate
+        if: steps.cppgauntlet.outcome == 'failure'
+        run: exit 1

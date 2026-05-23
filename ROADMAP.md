@@ -193,12 +193,12 @@ Exit criteria:
 
 ## Near-Term Priorities
 
-1. Add fuzz crash artifact upload examples for GitHub Actions.
-2. Add issue priority labels and escalation guidance.
-3. Add release SBOM generation.
-4. Add release notes policy configuration.
-5. Add package smoke tests for generated release archives.
-6. Add CI matrix examples for sanitizer and standard combinations.
+1. Add issue priority labels and escalation guidance.
+2. Add release SBOM generation.
+3. Add release notes policy configuration.
+4. Add package smoke tests for generated release archives.
+5. Add CI matrix examples for sanitizer and standard combinations.
+6. Add fuzz corpus retention examples for long-running CI jobs.
 
 ## Non-Goals
 
