@@ -193,12 +193,12 @@ Exit criteria:
 
 ## Near-Term Priorities
 
-1. Add SARIF fingerprints and richer source locations.
-2. Add diff discovery for changed-line coverage inputs.
-3. Add libFuzzer smoke workflows.
-4. Create contribution and issue templates before the first public release milestone.
-5. Add release packaging metadata and installation docs.
-6. Add baseline automation examples for reviewable CI artifact workflows.
+1. Add diff discovery for changed-line coverage inputs.
+2. Add libFuzzer smoke workflows.
+3. Create contribution and issue templates before the first public release milestone.
+4. Add release packaging metadata and installation docs.
+5. Add baseline automation examples for reviewable CI artifact workflows.
+6. Add schema compatibility tests for older baseline and report files.
 
 ## Non-Goals
 

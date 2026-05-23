@@ -96,4 +96,4 @@ The report summary also includes baseline counts:
 }
 ```
 
-Diagnostic fingerprints currently use severity, message, and raw diagnostic text after whitespace normalization. This is intentionally transparent and will become more precise as the diagnostic model grows.
+Diagnostic fingerprints currently use severity, normalized message text, and parsed source location when available. Absolute paths under the current working directory are normalized before fingerprinting. When CppGauntlet cannot parse a source location, it falls back to normalized raw diagnostic text.

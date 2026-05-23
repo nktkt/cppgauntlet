@@ -193,7 +193,7 @@ fn check_hello_writes_json_report() {
     let report = fs::read_to_string(report_path).unwrap();
     let value: serde_json::Value = serde_json::from_str(&report).unwrap();
 
-    assert_eq!(value["schema_version"], 2);
+    assert_eq!(value["schema_version"], 3);
     assert_eq!(value["status"], "passed");
     assert_eq!(value["target"]["standard"], "c++20");
 }
@@ -346,12 +346,31 @@ fn check_can_write_sarif_report_file() {
     );
     assert_eq!(sarif["runs"][0]["results"][0]["level"], "warning");
     assert_eq!(
+        sarif["runs"][0]["results"][0]["locations"][0]["physicalLocation"]["artifactLocation"]
+            ["uri"],
+        "warning.cpp"
+    );
+    assert_eq!(
         sarif["runs"][0]["results"][0]["locations"][0]["physicalLocation"]["region"]["startLine"],
         2
+    );
+    assert_eq!(
+        sarif["runs"][0]["results"][0]["locations"][0]["physicalLocation"]["region"]["startColumn"],
+        9
     );
 
     let value = read_report(temp.path());
     assert_eq!(value["sarif_report_path"], "report.sarif.json");
+    let diagnostic = &stage(&value, "compile")["diagnostics"][0];
+    assert_eq!(diagnostic["location"]["uri"], "warning.cpp");
+    assert_eq!(diagnostic["location"]["start_line"], 2);
+    assert_eq!(diagnostic["location"]["start_column"], 9);
+    let fingerprint = diagnostic["fingerprint"].as_str().unwrap();
+    assert_eq!(fingerprint.len(), 16);
+    assert_eq!(
+        sarif["runs"][0]["results"][0]["partialFingerprints"]["cppgauntletDiagnosticV1"],
+        fingerprint
+    );
 }
 
 #[test]

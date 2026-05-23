@@ -178,17 +178,25 @@ impl Report {
                     .baseline_status
                     .map(|status| format!(" / {}", status.as_str()))
                     .unwrap_or_default();
-                lines.extend([
-                    String::new(),
-                    format!(
-                        "- **{}{}** in `{}`: {}",
-                        diagnostic.severity.as_str(),
-                        baseline,
-                        markdown_cell(stage_name),
-                        markdown_cell(&diagnostic.message)
-                    ),
-                    format!("  - Raw: `{}`", markdown_cell(&diagnostic.raw)),
-                ]);
+                lines.push(String::new());
+                lines.push(format!(
+                    "- **{}{}** in `{}`: {}",
+                    diagnostic.severity.as_str(),
+                    baseline,
+                    markdown_cell(stage_name),
+                    markdown_cell(&diagnostic.message)
+                ));
+                if let Some(location) = diagnostic.source_location() {
+                    lines.push(format!(
+                        "  - Location: `{}`",
+                        markdown_cell(&format_location(&location))
+                    ));
+                }
+                lines.push(format!(
+                    "  - Fingerprint: `{}`",
+                    diagnostic.stable_fingerprint()
+                ));
+                lines.push(format!("  - Raw: `{}`", markdown_cell(&diagnostic.raw)));
             }
         }
 
@@ -307,11 +315,22 @@ impl Report {
                         .baseline_status
                         .map(|status| format!(" / {}", status.as_str()))
                         .unwrap_or_default();
+                    let location = diagnostic
+                        .source_location()
+                        .map(|location| {
+                            format!(
+                                r#"<p><strong>Location:</strong> <code>{}</code></p>"#,
+                                html_escape(&format_location(&location))
+                            )
+                        })
+                        .unwrap_or_default();
                     format!(
-                        r#"<article class="diagnostic"><h3>{}{}</h3><p><strong>Stage:</strong> <code>{}</code></p><p>{}</p><pre>{}</pre></article>"#,
+                        r#"<article class="diagnostic"><h3>{}{}</h3><p><strong>Stage:</strong> <code>{}</code></p>{}<p><strong>Fingerprint:</strong> <code>{}</code></p><p>{}</p><pre>{}</pre></article>"#,
                         diagnostic.severity.as_str(),
                         html_escape(&baseline),
                         html_escape(stage_name),
+                        location,
+                        html_escape(&diagnostic.stable_fingerprint()),
                         html_escape(&diagnostic.message),
                         html_escape(&diagnostic.raw)
                     )
@@ -423,6 +442,7 @@ pre {{ padding: 10px; overflow-x: auto; }}
     }
 
     fn sarif_result(&self, stage: &StageReport, diagnostic: &Diagnostic) -> serde_json::Value {
+        let location = diagnostic.source_location();
         let mut properties = serde_json::Map::from_iter([
             (
                 "stage".to_string(),
@@ -449,11 +469,14 @@ pre {{ padding: 10px; overflow-x: auto; }}
             "locations": [
                 {
                     "physicalLocation": sarif_physical_location(
-                        &diagnostic.raw,
+                        location.as_ref(),
                         &self.target.path.display().to_string()
                     )
                 }
             ],
+            "partialFingerprints": {
+                "cppgauntletDiagnosticV1": diagnostic.stable_fingerprint()
+            },
             "properties": properties
         })
     }
@@ -584,7 +607,19 @@ pub struct Diagnostic {
     pub message: String,
     pub raw: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location: Option<DiagnosticLocation>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub fingerprint: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub baseline_status: Option<DiagnosticBaselineStatus>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct DiagnosticLocation {
+    pub uri: String,
+    pub start_line: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start_column: Option<u64>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -644,12 +679,11 @@ fn diagnostic_from_marker(
     severity: DiagnosticSeverity,
 ) -> Option<Diagnostic> {
     let (_, message) = line.split_once(marker)?;
-    Some(Diagnostic {
+    Some(Diagnostic::new(
         severity,
-        message: message.trim().to_string(),
-        raw: line.to_string(),
-        baseline_status: None,
-    })
+        message.trim().to_string(),
+        line.to_string(),
+    ))
 }
 
 pub fn stage_from_result(
@@ -739,6 +773,43 @@ fn html_escape(value: &str) -> String {
 }
 
 impl Diagnostic {
+    fn new(severity: DiagnosticSeverity, message: String, raw: String) -> Self {
+        let location = parse_diagnostic_location(&raw);
+        let mut diagnostic = Self {
+            severity,
+            message,
+            raw,
+            location,
+            fingerprint: String::new(),
+            baseline_status: None,
+        };
+        diagnostic.ensure_metadata();
+        diagnostic
+    }
+
+    pub fn ensure_metadata(&mut self) {
+        if self.location.is_none() {
+            self.location = parse_diagnostic_location(&self.raw);
+        }
+        if self.fingerprint.is_empty() {
+            self.fingerprint = compute_diagnostic_fingerprint(self);
+        }
+    }
+
+    pub fn source_location(&self) -> Option<DiagnosticLocation> {
+        self.location
+            .clone()
+            .or_else(|| parse_diagnostic_location(&self.raw))
+    }
+
+    pub fn stable_fingerprint(&self) -> String {
+        if self.fingerprint.is_empty() {
+            compute_diagnostic_fingerprint(self)
+        } else {
+            self.fingerprint.clone()
+        }
+    }
+
     fn sarif_rule_id(&self) -> &'static str {
         match self.severity {
             DiagnosticSeverity::Warning => "cppgauntlet/warning",
@@ -772,8 +843,11 @@ fn sarif_rules() -> Vec<serde_json::Value> {
     ]
 }
 
-fn sarif_physical_location(raw: &str, fallback_uri: &str) -> serde_json::Value {
-    if let Some(location) = parse_diagnostic_location(raw) {
+fn sarif_physical_location(
+    location: Option<&DiagnosticLocation>,
+    fallback_uri: &str,
+) -> serde_json::Value {
+    if let Some(location) = location {
         let mut region = serde_json::Map::from_iter([(
             "startLine".to_string(),
             serde_json::Value::from(location.start_line),
@@ -800,11 +874,43 @@ fn sarif_physical_location(raw: &str, fallback_uri: &str) -> serde_json::Value {
     }
 }
 
-#[derive(Debug)]
-struct DiagnosticLocation {
-    uri: String,
-    start_line: u64,
-    start_column: Option<u64>,
+fn compute_diagnostic_fingerprint(diagnostic: &Diagnostic) -> String {
+    let mut parts = vec![
+        diagnostic.severity.as_str().to_string(),
+        normalize_fingerprint_part(&diagnostic.message),
+    ];
+
+    if let Some(location) = diagnostic.source_location() {
+        parts.push(normalize_fingerprint_part(&location.uri));
+        parts.push(location.start_line.to_string());
+        if let Some(start_column) = location.start_column {
+            parts.push(start_column.to_string());
+        }
+    } else {
+        parts.push(normalize_fingerprint_part(&diagnostic.raw));
+    }
+
+    format!("{:016x}", fnv1a_64(parts.join("\0").as_bytes()))
+}
+
+fn normalize_fingerprint_part(value: &str) -> String {
+    value.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn fnv1a_64(bytes: &[u8]) -> u64 {
+    let mut hash = 0xcbf29ce484222325u64;
+    for byte in bytes {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash
+}
+
+fn format_location(location: &DiagnosticLocation) -> String {
+    match location.start_column {
+        Some(column) => format!("{}:{}:{}", location.uri, location.start_line, column),
+        None => format!("{}:{}", location.uri, location.start_line),
+    }
 }
 
 fn parse_diagnostic_location(raw: &str) -> Option<DiagnosticLocation> {
@@ -827,7 +933,7 @@ fn parse_diagnostic_location(raw: &str) -> Option<DiagnosticLocation> {
         let column = raw[column_start..column_end].parse::<u64>().ok();
         if let Some(start_line) = line {
             return Some(DiagnosticLocation {
-                uri: raw[..path_end].to_string(),
+                uri: normalize_diagnostic_uri(&raw[..path_end]),
                 start_line,
                 start_column: column,
             });
@@ -835,4 +941,19 @@ fn parse_diagnostic_location(raw: &str) -> Option<DiagnosticLocation> {
     }
 
     None
+}
+
+fn normalize_diagnostic_uri(uri: &str) -> String {
+    let path = Path::new(uri);
+    if path.is_absolute() {
+        if let Ok(current_dir) = std::env::current_dir() {
+            if let Ok(relative) = path.strip_prefix(current_dir) {
+                if !relative.as_os_str().is_empty() {
+                    return relative.to_string_lossy().replace('\\', "/");
+                }
+            }
+        }
+    }
+
+    uri.replace('\\', "/")
 }

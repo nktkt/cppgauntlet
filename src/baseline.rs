@@ -6,9 +6,7 @@ use serde::Serialize;
 
 use crate::cli::{BaselineArgs, BaselineCommands, BaselineUpdateArgs};
 use crate::error::AppError;
-use crate::report::{
-    BaselineSummary, Diagnostic, DiagnosticBaselineStatus, DiagnosticSeverity, Report, StageReport,
-};
+use crate::report::{BaselineSummary, Diagnostic, DiagnosticBaselineStatus, Report, StageReport};
 
 #[derive(Clone, Debug)]
 pub struct Baseline {
@@ -358,6 +356,7 @@ fn normalize_report_for_baseline(report: &mut Report, output: &Path) {
         .iter_mut()
         .flat_map(|stage| stage.diagnostics.iter_mut())
     {
+        diagnostic.ensure_metadata();
         diagnostic.baseline_status = None;
     }
 }
@@ -390,23 +389,7 @@ fn diagnostic_fingerprints(report: &Report) -> HashSet<String> {
 }
 
 fn fingerprint(diagnostic: &Diagnostic) -> String {
-    format!(
-        "{}\0{}\0{}",
-        severity_key(diagnostic.severity),
-        normalize(&diagnostic.message),
-        normalize(&diagnostic.raw)
-    )
-}
-
-fn severity_key(severity: DiagnosticSeverity) -> &'static str {
-    match severity {
-        DiagnosticSeverity::Warning => "warning",
-        DiagnosticSeverity::Error => "error",
-    }
-}
-
-fn normalize(value: &str) -> String {
-    value.split_whitespace().collect::<Vec<_>>().join(" ")
+    diagnostic.stable_fingerprint()
 }
 
 fn markdown_cell(value: &str) -> String {

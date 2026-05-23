@@ -66,7 +66,7 @@ cargo run -- check main.cpp --config cppgauntlet.yaml
 
 Generated artifacts are written to `.cppgauntlet/` by default, including `cppgauntlet-report.json`.
 
-The current JSON report schema is version `2`. Each stage records:
+The current JSON report schema is version `3`. Each stage records:
 
 - command arguments
 - exit code
@@ -105,7 +105,6 @@ The first version will focus on a small, useful workflow:
 
 ## Future Scope
 
-- SARIF fingerprints and richer source locations.
 - Diff discovery for changed-line coverage inputs.
 - libFuzzer workflows.
 - CI-friendly exit codes.
@@ -166,7 +165,7 @@ policy:
 
 ## Project Status
 
-CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, custom test commands, optional `clang-tidy` analysis, single-file, compilation database, and CMake/CTest LLVM coverage, diagnostic baselines with changed-diagnostic update summaries, CI policy gates including changed-line coverage, environment diagnostics, JSON reports, Markdown reports, HTML reports, SARIF output, and GitHub Code Scanning examples.
+CppGauntlet is in early implementation. The repository currently includes single-file checks, compilation database checks, CMake configuration, optional CTest execution, custom test commands, optional `clang-tidy` analysis, single-file, compilation database, and CMake/CTest LLVM coverage, diagnostic baselines with changed-diagnostic update summaries, CI policy gates including changed-line coverage, environment diagnostics, JSON reports with diagnostic fingerprints and parsed source locations, Markdown reports, HTML reports, SARIF output, and GitHub Code Scanning examples.
 
 ## License
 

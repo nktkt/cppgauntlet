@@ -160,7 +160,7 @@ fn run_source_file(args: ResolvedCheckArgs, source: PathBuf) -> Result<Report, A
     };
 
     let report = Report {
-        schema_version: 2,
+        schema_version: 3,
         tool: ToolInfo {
             name: "CppGauntlet".to_string(),
             version: env!("CARGO_PKG_VERSION").to_string(),
@@ -360,7 +360,7 @@ fn build_and_write_report_with_coverage(
     };
 
     let report = Report {
-        schema_version: 2,
+        schema_version: 3,
         tool: ToolInfo {
             name: "CppGauntlet".to_string(),
             version: env!("CARGO_PKG_VERSION").to_string(),

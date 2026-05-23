@@ -33,8 +33,11 @@ Each diagnostic becomes a SARIF result with:
 - `ruleId` based on diagnostic severity
 - `level` set to `warning` or `error`
 - `message.text` from the parsed diagnostic message
-- `locations[0].physicalLocation` from `file:line:column` diagnostic text when available
+- `locations[0].physicalLocation` from the parsed diagnostic `location`
+- `partialFingerprints.cppgauntletDiagnosticV1` from the stable CppGauntlet diagnostic fingerprint
 - `properties.stage`, `properties.raw`, and optional `properties.baselineStatus`
+
+Absolute diagnostic paths under the current working directory are normalized to relative, slash-separated SARIF artifact URIs.
 
 The emitted `$schema` points to the OASIS SARIF 2.1.0 schema.
 

@@ -2,13 +2,13 @@
 
 CppGauntlet reports are JSON documents intended for both human inspection and CI automation.
 
-The current schema version is `2`.
+The current schema version is `3`.
 
 ## Top-Level Fields
 
 ```json
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "tool": {},
   "target": {},
   "status": "passed",
@@ -116,6 +116,12 @@ Diagnostics are extracted from compiler, sanitizer, and `clang-tidy` stdout/stde
   "severity": "warning",
   "message": "unused variable 'unused' [-Wunused-variable]",
   "raw": "main.cpp:2:9: warning: unused variable 'unused' [-Wunused-variable]",
+  "location": {
+    "uri": "main.cpp",
+    "start_line": 2,
+    "start_column": 9
+  },
+  "fingerprint": "f4cfb9f2485e6b6b",
   "baseline_status": "existing"
 }
 ```
@@ -126,5 +132,7 @@ Current severity values:
 - `error`
 
 When a baseline report is configured, `baseline_status` is either `existing` or `new`. The field is omitted when no baseline was used.
+`location` is emitted when CppGauntlet can parse a `file:line:column` prefix from the diagnostic text. Absolute paths under the current working directory are normalized to relative, slash-separated URIs.
+`fingerprint` is a stable CppGauntlet diagnostic identifier used by baseline comparison and SARIF output.
 
 CppGauntlet keeps the full raw stdout and stderr for every stage because diagnostic parsing will become more precise over time.
